@@ -5,10 +5,14 @@
  * uses via the sqlite-database-integration plugin (v2.2.17).
  *
  * DB location per site: {sitePath}/wp-content/database/.ht.sqlite
+ *
+ * Uses Node.js built-in node:sqlite (stable since Node v23.4, available in v24).
+ * No native build or Python required.
  */
 
 import fs   from "node:fs";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z }          from "zod";
 import {
@@ -17,10 +21,8 @@ import {
   STUDIO_SITES_ROOT,
 } from "../studio-config.js";
 
-// Lazy-load better-sqlite3 so the server starts even if the package is absent
-async function openDb(dbPath: string) {
-  const Database = (await import("better-sqlite3")).default;
-  return new Database(dbPath, { readonly: false, fileMustExist: true });
+function openDb(dbPath: string): DatabaseSync {
+  return new DatabaseSync(dbPath);
 }
 
 export function registerDatabaseTools(server: McpServer): void {
@@ -48,7 +50,7 @@ export function registerDatabaseTools(server: McpServer): void {
         };
       }
 
-      const db = await openDb(dbPath);
+      const db = openDb(dbPath);
       try {
         const tables = db.prepare(
           "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
@@ -80,7 +82,7 @@ export function registerDatabaseTools(server: McpServer): void {
         return { content: [{ type: "text" as const, text: `SQLite DB not found at: ${dbPath}` }], isError: true };
       }
 
-      const db = await openDb(dbPath);
+      const db = openDb(dbPath);
       try {
         const validTables = (db.prepare(
           "SELECT name FROM sqlite_master WHERE type='table'"
@@ -144,7 +146,7 @@ export function registerDatabaseTools(server: McpServer): void {
         return { content: [{ type: "text" as const, text: `SQLite DB not found at: ${dbPath}` }], isError: true };
       }
 
-      const db = await openDb(dbPath);
+      const db = openDb(dbPath);
       try {
         const safeSql = /LIMIT\s+\d+/i.test(sql) ? sql : `${sql} LIMIT ${limit}`;
         const rows    = db.prepare(safeSql).all() as Record<string, unknown>[];
@@ -183,7 +185,7 @@ export function registerDatabaseTools(server: McpServer): void {
         return { content: [{ type: "text" as const, text: `SQLite DB not found at: ${dbPath}` }], isError: true };
       }
 
-      const db = await openDb(dbPath);
+      const db = openDb(dbPath);
       try {
         const info = db.prepare(sql).run();
         return {
@@ -217,7 +219,7 @@ export function registerDatabaseTools(server: McpServer): void {
         return { content: [{ type: "text" as const, text: `SQLite DB not found at: ${dbPath}` }], isError: true };
       }
 
-      const db = await openDb(dbPath);
+      const db = openDb(dbPath);
       try {
         const tables = db.prepare(
           "SELECT name, sql FROM sqlite_master WHERE type='table' ORDER BY name"
@@ -238,7 +240,7 @@ export function registerDatabaseTools(server: McpServer): void {
             const rows = db.prepare(`SELECT * FROM "${name}"`).all() as Record<string, unknown>[];
             for (const row of rows) {
               const values = Object.values(row).map(v => {
-                if (v === null)           return "NULL";
+                if (v === null)            return "NULL";
                 if (typeof v === "number") return String(v);
                 return `'${String(v).replace(/'/g, "''")}'`;
               });
