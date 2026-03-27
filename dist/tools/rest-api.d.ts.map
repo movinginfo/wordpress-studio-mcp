@@ -1,1 +1,1 @@
-{"version":3,"file":"rest-api.d.ts","sourceRoot":"","sources":["../../src/tools/rest-api.ts"],"names":[],"mappings":"AAAA;;;;;;;;;;;;;;;;;;;;;;;GAuBG;AAOH,OAAO,EAAE,SAAS,EAAE,MAAS,yCAAyC,CAAC;AAmFvE,wBAAgB,oBAAoB,CAAC,MAAM,EAAE,SAAS,GAAG,IAAI,CA21B5D"}
+{"version":3,"file":"rest-api.d.ts","sourceRoot":"","sources":["../../src/tools/rest-api.ts"],"names":[],"mappings":"AAAA;;;;;;;;;;;;;;;;;;;;;;;GAuBG;AAOH,OAAO,EAAE,SAAS,EAAE,MAAS,yCAAyC,CAAC;AAmFvE,wBAAgB,oBAAoB,CAAC,MAAM,EAAE,SAAS,GAAG,IAAI,CA84B5D"}

@@ -15,7 +15,7 @@
 - [The Complete WordPress AI Stack](#the-complete-wordpress-ai-stack)
 - [Install — Claude Desktop](#install--claude-desktop)
 - [Install — Claude Code IDE](#install--claude-code-ide)
-- [wordpress-studio-mcp Tools (42)](#wordpress-studio-mcp--42-tools--this-project)
+- [wordpress-studio-mcp Tools (46)](#wordpress-studio-mcp--46-tools--this-project)
 - [wordpress-studio Tools (13)](#wordpress-studio--13-tools--automattic-wp-studio1777)
 - [WP-CLI Reference](#wp-cli-reference)
 - [wordpress.com MCP Tools (17)](#wordpresscom-mcp--17-tools--automattic-remote-http)
@@ -49,13 +49,13 @@ Claude Desktop / Claude Code
 │                                                              WP-CLI, preview, screenshot
 │
 └── 🔧 wordpress-studio-mcp     LOCAL   stdio              →  node dist/index.js
-    This project · github.com/movinginfo/wordpress-studio-mcp  42 tools — filesystem,
-                                                               SQLite DB, WP-CLI helpers,
-                                                               site registry, REST API,
-                                                               theme design tokens
+    This project · github.com/movinginfo/wordpress-studio-mcp  46 tools — filesystem,
+                                                               SQLite DB, WP-CLI, REST API,
+                                                               theme tokens, blueprints,
+                                                               WP.com MCP proxy
 ```
 
-**Total: 4 commands + 72 MCP tools** covering the full WordPress development lifecycle.
+**Total: 4 commands + 76 MCP tools** covering the full WordPress development lifecycle.
 
 ---
 
@@ -135,7 +135,7 @@ This adds the `/design-site`, `/preview-designs`, `/quick-build`, `/site-specifi
 Fully quit Claude Desktop (system tray → Quit) and reopen. Click the **⊕ plug icon** in the chat input:
 
 ```
-✓ wordpress-studio-mcp    42 tools
+✓ wordpress-studio-mcp    46 tools
 ✓ wordpress-studio        13 tools
 ✓ wordpress-com           17 tools   (after plugin install)
 ```
@@ -218,7 +218,7 @@ Add inside `mcpServers`:
 
 ## Tool Reference
 
-### `wordpress-studio-mcp` · 42 tools · this project
+### `wordpress-studio-mcp` · 46 tools · this project
 
 #### Site Registry & Status
 
@@ -310,6 +310,58 @@ wp_theme_json (section: colors)  → get palette slugs
 wp_theme_json (section: fonts)   → get font size slugs
 wp_theme_json (section: blocks)  → get per-block overrides
 → use slugs in block attributes, not hard-coded hex/px
+```
+
+#### WordPress.com MCP Proxy
+
+| Tool | Description |
+|---|---|
+| `wpcom_mcp_call` | Proxy any raw MCP protocol call directly to `https://public-api.wordpress.com/wpcom/v2/mcp/v1`. Methods: `tools/list`, `tools/call`, `resources/list`, `resources/read`. Use this to call any of the 17 official Automattic tools not explicitly wrapped here. |
+
+**Example — call the official statistics tool:**
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "wpcom-mcp-site-statistics",
+    "arguments": { "wpcom_site": "mysite.wordpress.com", "views": true }
+  }
+}
+```
+
+#### Blueprints
+
+JSON recipes for creating reproducible Studio sites. Same format as WordPress Playground — portable across development environments.
+
+| Tool | Description |
+|---|---|
+| `studio_blueprint_list` | List the 3 built-in featured blueprints (Quick Start, Development, Commerce) with full step definitions |
+| `studio_blueprint_generate` | Snapshot an existing site into a reusable blueprint JSON — captures active plugins, theme, site options, PHP/WP versions, wp-config constants |
+| `studio_blueprint_apply` | Apply a blueprint JSON to an existing Studio site — requires `confirmed: true` |
+
+**27 supported blueprint steps:**
+
+| Category | Steps |
+|---|---|
+| Plugins & Themes | `installPlugin`, `activatePlugin`, `installTheme`, `activateTheme`, `importThemeStarterContent` |
+| Content & Data | `setSiteOptions`, `updateUserMeta`, `runSql`, `resetData` |
+| Files | `writeFile`, `mkdir`, `cp`, `mv` |
+| Code | `runPHP`, `wp-cli` |
+| Config | `defineWpConfigConsts`, `setSiteLanguage` |
+| Skipped | `login`, `landingPage`, `enableMultisite`, `importWordPressFiles`, `importWxr`, `unzip`, `writeFiles`, `runPHPWithOptions` |
+
+**Example blueprint:**
+```json
+{
+  "$schema": "https://playground.wordpress.net/blueprint-schema.json",
+  "preferredVersions": { "php": "8.3", "wp": "latest" },
+  "steps": [
+    { "step": "setSiteOptions", "options": { "blogname": "My Dev Site", "permalink_structure": "/%postname%/" } },
+    { "step": "defineWpConfigConsts", "consts": { "WP_DEBUG": true, "WP_DEBUG_LOG": true } },
+    { "step": "installPlugin", "pluginData": { "resource": "wordpress.org/plugins", "slug": "query-monitor" }, "options": { "activate": true } },
+    { "step": "installTheme",  "themeData":  { "resource": "wordpress.org/themes",  "slug": "twentytwentyfour" }, "options": { "activate": true } }
+  ]
+}
 ```
 
 ---
@@ -674,6 +726,16 @@ Create a draft post on "my-shop" via wp_rest_request (requires confirmation)
 Show me the color palette and font sizes from the active theme on site "my-shop"
 Get all theme.json design tokens from site "my-shop" before I write block content
 What colors are available in the active WordPress.com theme on mysite.wordpress.com?
+
+# Blueprints
+Show me the built-in Commerce blueprint
+Generate a blueprint from my site "my-shop" so I can recreate it
+Apply the Development blueprint to site "my-shop" (installs debug tools)
+Apply this blueprint JSON to site "new-site": { ... }
+
+# WordPress.com MCP proxy
+Call wpcom-mcp-site-statistics for mysite.wordpress.com via wpcom_mcp_call
+List all available official WordPress.com MCP tools
 ```
 
 ---
@@ -735,7 +797,8 @@ wordpress-studio-mcp/
 │       ├── filesystem.ts         fs_read_file, fs_write_file, fs_find_files …
 │       ├── database.ts           db_query, db_execute, db_export_sql …
 │       ├── wpcli.ts              wpcli_plugin_list, wpcli_run …
-│       └── rest-api.ts           wpcom_api_get, wp_rest_get, wpcom_theme_context, wp_theme_json …
+│       ├── rest-api.ts           wpcom_api_get, wp_rest_get, wpcom_mcp_call, wpcom_theme_context …
+│       └── blueprints.ts         studio_blueprint_list, studio_blueprint_generate, studio_blueprint_apply
 │
 ├── dist/                         Compiled JS — generated by npm run build
 ├── .claude-plugin/
@@ -776,6 +839,9 @@ wordpress-studio-mcp/
 | wordpress.com MCP returns 401 | Re-authenticate: Studio Desktop → WordPress.com → Log in again |
 | `wp_rest_*` returns 401 | Generate an Application Password in WP Admin → Users → Profile |
 | `wp_rest_*` connection refused | Site must be running — use `site_start` or `studio_site_health` first |
+| `wpcom_mcp_call` returns 401 | Re-authenticate: Studio Desktop → WordPress.com → Log in again |
+| `studio_blueprint_apply` plugin install fails | Site must be running for WP-CLI steps — start it first |
+| `studio_blueprint_generate` shows empty plugins | Site must be running; WP-CLI reads the live DB |
 | `/quick-build` can't find Studio | Run `studio --version` in terminal — CLI must be in PATH |
 
 ---

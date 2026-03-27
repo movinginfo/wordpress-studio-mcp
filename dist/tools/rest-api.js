@@ -467,6 +467,37 @@ export function registerRestApiTools(server) {
         return { content: [{ type: "text", text: formatJson(res.body) }], isError: res.status >= 400 };
     });
     // ══════════════════════════════════════════════════════════════════════════════
+    // WORDPRESS.COM MCP PROTOCOL PROXY
+    // ══════════════════════════════════════════════════════════════════════════════
+    // ── wpcom_mcp_call ────────────────────────────────────────────────────────
+    server.tool("wpcom_mcp_call", "Proxy a raw MCP protocol call directly to the official WordPress.com MCP endpoint " +
+        "(https://public-api.wordpress.com/wpcom/v2/mcp/v1). " +
+        "Use this to call any of the 17 official Automattic tools that are not explicitly wrapped here: " +
+        "wpcom-mcp-content-authoring, wpcom-mcp-site-editor-context, wpcom-mcp-user-sites, " +
+        "wpcom-mcp-posts-search, wpcom-mcp-post-get, wpcom-mcp-site-comments-search, " +
+        "wpcom-mcp-site-plugins, wpcom-mcp-site-settings, wpcom-mcp-site-statistics, " +
+        "wpcom-mcp-site-users, wpcom-mcp-user-profile, wpcom-mcp-user-connections, " +
+        "wpcom-mcp-user-notifications, wpcom-mcp-user-notifications-inbox, " +
+        "wpcom-mcp-user-security, wpcom-mcp-user-subscriptions, wpcom-mcp-user-achievements.", {
+        method: z.enum(["tools/list", "tools/call", "resources/list", "resources/read"]).describe("MCP protocol method"),
+        params: z.record(z.unknown()).optional().describe("MCP params object. For tools/call: { name: 'wpcom-mcp-posts-search', arguments: { wpcom_site: '...', search: '...' } }"),
+    }, async ({ method, params }) => {
+        const token = getWpcomToken();
+        if (!token) {
+            return {
+                content: [{ type: "text", text: "Not authenticated to WordPress.com.\nRun: studio auth login" }],
+                isError: true,
+            };
+        }
+        const payload = JSON.stringify({ method, params: params ?? {} });
+        const res = await httpRequest(`${WPCOM_REST_BASE}/wpcom/v2/mcp/v1`, "POST", {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+        }, payload);
+        const text = `${method}\nStatus: ${res.status}\n\n${formatJson(res.body)}`;
+        return { content: [{ type: "text", text }], isError: res.status >= 400 };
+    });
+    // ══════════════════════════════════════════════════════════════════════════════
     // THEME CONTEXT — design tokens for block content generation
     // ══════════════════════════════════════════════════════════════════════════════
     // ── wpcom_theme_context ───────────────────────────────────────────────────
