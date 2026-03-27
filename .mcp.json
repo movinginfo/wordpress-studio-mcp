@@ -1,86 +1,12 @@
 {
-  "$schema": "https://json.schemastore.org/mcp.json",
-
   "mcpServers": {
-
-    "wordpress-com": {
-      "type": "http",
-      "url": "https://public-api.wordpress.com/wpcom/v2/mcp/v1",
-      "_info": {
-        "description": "Remote WordPress.com MCP — OAuth 2.1 + PKCE, browser consent on first use",
-        "oauth": {
-          "register":  "https://public-api.wordpress.com/oauth2-1/register",
-          "authorize": "https://public-api.wordpress.com/oauth2-1/authorize",
-          "token":     "https://public-api.wordpress.com/oauth2-1/token",
-          "scope":     "auth",
-          "pkce":      "S256"
-        },
-        "tools": [
-          "wpcom-mcp-content-authoring",
-          "wpcom-mcp-posts-search",
-          "wpcom-mcp-post-get",
-          "wpcom-mcp-site-settings",
-          "wpcom-mcp-site-statistics",
-          "wpcom-mcp-site-plugins",
-          "wpcom-mcp-site-editor-context",
-          "wpcom-mcp-user-sites",
-          "wpcom-mcp-user-profile",
-          "wpcom-mcp-user-connections",
-          "wpcom-mcp-user-notifications",
-          "wpcom-mcp-user-notifications-inbox",
-          "wpcom-mcp-site-users",
-          "wpcom-mcp-user-security"
-        ]
-      }
-    },
-
-    "wordpress-studio": {
-      "command": "studio",
-      "args": ["mcp"],
-      "_info": {
-        "description": "Studio 1.7.7 built-in MCP — enable in Studio > Settings > Studio CLI",
-        "tools": [
-          "site_create", "site_list", "site_info",
-          "site_start",  "site_stop", "site_delete",
-          "preview_create", "preview_list", "preview_update", "preview_delete",
-          "wp_cli", "validate_blocks", "take_screenshot"
-        ]
-      }
-    },
-
     "wordpress-studio-ext": {
-      "command": "node",
-      "args": [
-        "c:\\Work\\Wordpress Studio MCP Plugin for Claude Code\\dist\\index.js"
-      ],
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "wordpress-studio-mcp@latest"],
       "env": {
-        "STUDIO_HOME":       "C:\\Users\\Користувач\\.studio",
-        "STUDIO_SITES_ROOT": "C:\\Users\\Користувач\\Studio\\sites"
-      },
-      "_info": {
-        "description": "Hybrid extension MCP — filesystem, SQLite DB, WP-CLI helpers, site registry",
-        "build": "cd \"c:\\Work\\Wordpress Studio MCP Plugin for Claude Code\" && npm run build",
-        "tools": {
-          "registry": [
-            "studio_registry", "studio_auth_status", "studio_daemon_status",
-            "studio_disk_usage", "studio_site_health", "studio_config_dump"
-          ],
-          "filesystem": [
-            "fs_read_file", "fs_write_file", "fs_list_dir",
-            "fs_find_files", "fs_read_wp_config", "fs_read_error_log"
-          ],
-          "database": [
-            "db_list_tables", "db_describe_table",
-            "db_query", "db_execute", "db_export_sql"
-          ],
-          "wpcli": [
-            "wpcli_plugin_list", "wpcli_plugin_install", "wpcli_plugin_deactivate",
-            "wpcli_theme_list", "wpcli_theme_activate",
-            "wpcli_user_list", "wpcli_create_admin",
-            "wpcli_search_replace", "wpcli_cache_flush",
-            "wpcli_core_update", "wpcli_run"
-          ]
-        }
+        "STUDIO_HOME": "${STUDIO_HOME}",
+        "STUDIO_SITES_ROOT": "${STUDIO_SITES_ROOT}"
       }
     }
   }

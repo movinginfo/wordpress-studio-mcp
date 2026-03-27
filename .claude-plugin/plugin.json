@@ -1,0 +1,13 @@
+{
+  "name": "wordpress-studio-mcp",
+  "version": "1.0.0",
+  "description": "Hybrid MCP extension for WordPress Studio 1.7.7 — 27 tools for filesystem, SQLite DB, WP-CLI, and site registry.",
+  "author": {
+    "name": "movinginfo"
+  },
+  "homepage": "https://github.com/movinginfo/wordpress-studio-mcp",
+  "repository": "https://github.com/movinginfo/wordpress-studio-mcp",
+  "license": "MIT",
+  "keywords": ["wordpress", "studio", "mcp", "wpcli", "sqlite", "windows"],
+  "mcpServers": "./.mcp.json"
+}
