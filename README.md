@@ -15,7 +15,7 @@
 - [The Complete WordPress AI Stack](#the-complete-wordpress-ai-stack)
 - [Install — Claude Desktop](#install--claude-desktop)
 - [Install — Claude Code IDE](#install--claude-code-ide)
-- [wordpress-studio-mcp Tools (46)](#wordpress-studio-mcp--46-tools--this-project)
+- [wordpress-studio-mcp Tools (48)](#wordpress-studio-mcp--48-tools--this-project)
 - [wordpress-studio Tools (13)](#wordpress-studio--13-tools--automattic-wp-studio1777)
 - [WP-CLI Reference](#wp-cli-reference)
 - [wordpress.com MCP Tools (17)](#wordpresscom-mcp--17-tools--automattic-remote-http)
@@ -49,13 +49,14 @@ Claude Desktop / Claude Code
 │                                                              WP-CLI, preview, screenshot
 │
 └── 🔧 wordpress-studio-mcp     LOCAL   stdio              →  node dist/index.js
-    This project · github.com/movinginfo/wordpress-studio-mcp  46 tools — filesystem,
+    This project · github.com/movinginfo/wordpress-studio-mcp  48 tools — filesystem,
                                                                SQLite DB, WP-CLI, REST API,
                                                                theme tokens, blueprints,
-                                                               WP.com MCP proxy
+                                                               WP.com MCP proxy,
+                                                               VIP Design System
 ```
 
-**Total: 4 commands + 76 MCP tools** covering the full WordPress development lifecycle.
+**Total: 4 commands + 78 MCP tools** covering the full WordPress development lifecycle.
 
 ---
 
@@ -135,7 +136,7 @@ This adds the `/design-site`, `/preview-designs`, `/quick-build`, `/site-specifi
 Fully quit Claude Desktop (system tray → Quit) and reopen. Click the **⊕ plug icon** in the chat input:
 
 ```
-✓ wordpress-studio-mcp    46 tools
+✓ wordpress-studio-mcp    48 tools
 ✓ wordpress-studio        13 tools
 ✓ wordpress-com           17 tools   (after plugin install)
 ```
@@ -218,7 +219,7 @@ Add inside `mcpServers`:
 
 ## Tool Reference
 
-### `wordpress-studio-mcp` · 46 tools · this project
+### `wordpress-studio-mcp` · 48 tools · this project
 
 #### Site Registry & Status
 
@@ -338,6 +339,27 @@ JSON recipes for creating reproducible Studio sites. Same format as WordPress Pl
 | `studio_blueprint_list` | List the 3 built-in featured blueprints (Quick Start, Development, Commerce) with full step definitions |
 | `studio_blueprint_generate` | Snapshot an existing site into a reusable blueprint JSON — captures active plugins, theme, site options, PHP/WP versions, wp-config constants |
 | `studio_blueprint_apply` | Apply a blueprint JSON to an existing Studio site — requires `confirmed: true` |
+
+#### VIP Design System
+
+Automattic's own design system ([github.com/Automattic/vip-design-system](https://github.com/Automattic/vip-design-system)) — the same token/component library used across WordPress.com, VIP, and Jetpack. Built on Theme UI + Radix UI.
+
+| Tool | Description |
+|---|---|
+| `vip_design_tokens` | Query resolved VIP DS tokens: 10 color palettes (gold, gray, green, blue, red, yellow, orange, pink, salmon, parsely-green), semantic color roles (light + dark), responsive typography scale (12 steps, `clamp()` formulas), spacing scale, border radius, shadows, 50+ component inventory |
+| `vip_design_theme_json` | Generate a complete WordPress `theme.json` mapped from VIP DS tokens. Styles: `default`, `minimal`, `full` (all 10 palettes), `dark`. Write directly to a theme with `fs_write_file`. |
+
+**Color palettes:** 10 palettes × ~12 key stops each. Semantic roles: `primary`, `foreground`, `background`, `muted`, `border`, `success`, `warning`, `danger`, `info`, `link`.
+
+**Typography:** 12-step responsive scale using `clamp()` — xs through 5xl (display). Font families: System UI (body), Recoleta (serif), inherit (headings), monospace.
+
+**Design workflow with VIP DS:**
+```
+1. vip_design_tokens section:semantic        → get brand colors
+2. vip_design_theme_json style:default       → generate theme.json
+3. fs_write_file path:themes/{theme}/theme.json  → write to site
+4. wpcli_theme_activate slug:{theme}         → activate theme
+```
 
 **27 supported blueprint steps:**
 
@@ -727,6 +749,13 @@ Show me the color palette and font sizes from the active theme on site "my-shop"
 Get all theme.json design tokens from site "my-shop" before I write block content
 What colors are available in the active WordPress.com theme on mysite.wordpress.com?
 
+# VIP Design System
+Show me the VIP DS color palette for the gold brand colors
+Get the full semantic color roles from the VIP Design System
+Generate a WordPress theme.json using VIP Design System tokens (style: default)
+Generate a dark-mode theme.json using the VIP Design System
+What components are available in the VIP Design System?
+
 # Blueprints
 Show me the built-in Commerce blueprint
 Generate a blueprint from my site "my-shop" so I can recreate it
@@ -798,7 +827,8 @@ wordpress-studio-mcp/
 │       ├── database.ts           db_query, db_execute, db_export_sql …
 │       ├── wpcli.ts              wpcli_plugin_list, wpcli_run …
 │       ├── rest-api.ts           wpcom_api_get, wp_rest_get, wpcom_mcp_call, wpcom_theme_context …
-│       └── blueprints.ts         studio_blueprint_list, studio_blueprint_generate, studio_blueprint_apply
+│       ├── blueprints.ts         studio_blueprint_list, studio_blueprint_generate, studio_blueprint_apply
+│       └── vip-design.ts         vip_design_tokens, vip_design_theme_json
 │
 ├── dist/                         Compiled JS — generated by npm run build
 ├── .claude-plugin/
@@ -842,6 +872,7 @@ wordpress-studio-mcp/
 | `wpcom_mcp_call` returns 401 | Re-authenticate: Studio Desktop → WordPress.com → Log in again |
 | `studio_blueprint_apply` plugin install fails | Site must be running for WP-CLI steps — start it first |
 | `studio_blueprint_generate` shows empty plugins | Site must be running; WP-CLI reads the live DB |
+| `vip_design_theme_json` font sizes look wrong | Set `responsive_type: false` for static px values instead of `clamp()` |
 | `/quick-build` can't find Studio | Run `studio --version` in terminal — CLI must be in PATH |
 
 ---
@@ -858,6 +889,7 @@ npm run clean  # remove dist/
 
 ## Related
 
+- [VIP Design System](https://github.com/Automattic/vip-design-system) — Automattic's design tokens and React components (Theme UI + Radix UI)
 - [wordpress.com Claude plugin](https://github.com/Automattic/claude-code-wordpress.com) — official Automattic skills plugin
 - [WordPress Studio](https://developer.wordpress.com/studio/) — local WordPress development environment
 - [wp-studio CLI](https://www.npmjs.com/package/wp-studio) — official Studio CLI npm package (v1.7.7)
