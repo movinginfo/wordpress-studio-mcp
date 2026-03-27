@@ -73,7 +73,7 @@ Claude Code
 ## Quick Start
 
 ```powershell
-git clone https://github.com/YOUR_USERNAME/wordpress-studio-mcp.git
+git clone https://github.com/movinginfo/wordpress-studio-mcp.git
 cd wordpress-studio-mcp
 .\setup.ps1
 ```
