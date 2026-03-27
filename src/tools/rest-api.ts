@@ -25,9 +25,11 @@
 
 import http  from "node:http";
 import https from "node:https";
-import { URL }       from "node:url";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z }          from "zod";
+import fs    from "node:fs";
+import { URL }          from "node:url";
+import { DatabaseSync } from "node:sqlite";
+import { McpServer }    from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z }            from "zod";
 import { readSharedConfig, findSite, getSites, STUDIO_SITES_ROOT } from "../studio-config.js";
 import path from "node:path";
 
@@ -648,6 +650,324 @@ export function registerRestApiTools(server: McpServer): void {
         "Authorization": `Basic ${Buffer.from(app_password).toString("base64")}`,
       });
       return { content: [{ type: "text" as const, text: formatJson(res.body) }], isError: res.status >= 400 };
+    }
+  );
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // THEME CONTEXT — design tokens for block content generation
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  // ── wpcom_theme_context ───────────────────────────────────────────────────
+
+  server.tool(
+    "wpcom_theme_context",
+    "Get theme design context from a WordPress.com site: active theme name, color palette, " +
+    "font sizes, font families, spacing scale, gradients, and per-block style overrides. " +
+    "Use this before generating block content so Claude uses the correct design tokens " +
+    "(preset slugs like 'has-primary-color', 'has-large-font-size') instead of hard-coded values. " +
+    "Mirrors the wpcom-mcp-site-editor-context tool from the official wordpress.com MCP.",
+    {
+      site: z.string().describe("WordPress.com site ID or domain, e.g. mysite.wordpress.com"),
+      operation: z.enum(["active", "presets", "styles", "blocks", "all"]).default("all").describe(
+        "active=theme name only | presets=colors/fonts/spacing | styles=block overrides | blocks=allowed block types | all=everything"
+      ),
+    },
+    async ({ site, operation }) => {
+      const token = getWpcomToken();
+      if (!token) {
+        return {
+          content: [{ type: "text" as const, text:
+            "Not authenticated to WordPress.com.\nRun: studio auth login" }],
+          isError: true,
+        };
+      }
+
+      const headers: Record<string, string> = { "Authorization": `Bearer ${token}` };
+      const enc = encodeURIComponent(site);
+      const results: Record<string, unknown> = {};
+
+      // ── active theme ─────────────────────────────────────────────────────────
+      if (operation === "active" || operation === "all") {
+        const res = await httpRequest(
+          `${WPCOM_REST_BASE}/rest/v1.1/sites/${enc}/themes?filter=active`, "GET", headers
+        );
+        if (res.status < 400) {
+          try {
+            const data = JSON.parse(res.body) as { themes?: Array<{ stylesheet?: string; name?: string; author?: { name?: string } }> };
+            const theme = data.themes?.[0];
+            results.active_theme = {
+              stylesheet: theme?.stylesheet,
+              name:       theme?.name,
+              author:     theme?.author?.name,
+            };
+          } catch { results.active_theme = res.body; }
+        } else {
+          results.active_theme_error = `HTTP ${res.status}`;
+        }
+      }
+
+      // ── global styles (presets + block styles) ────────────────────────────────
+      if (operation === "presets" || operation === "styles" || operation === "all") {
+        // Get stylesheet slug from active theme if we haven't fetched it yet
+        let stylesheet = (results.active_theme as { stylesheet?: string } | undefined)?.stylesheet;
+        if (!stylesheet) {
+          const res = await httpRequest(
+            `${WPCOM_REST_BASE}/rest/v1.1/sites/${enc}/themes?filter=active`, "GET", headers
+          );
+          if (res.status < 400) {
+            try {
+              const data = JSON.parse(res.body) as { themes?: Array<{ stylesheet?: string }> };
+              stylesheet = data.themes?.[0]?.stylesheet;
+            } catch { /* ignore */ }
+          }
+        }
+
+        if (stylesheet) {
+          const gsRes = await httpRequest(
+            `${WPCOM_REST_BASE}/wpcom/v2/sites/${enc}/global-styles/themes/${encodeURIComponent(stylesheet)}`,
+            "GET", headers
+          );
+          if (gsRes.status < 400) {
+            try {
+              const gs = JSON.parse(gsRes.body) as {
+                settings?: {
+                  color?:      { palette?: unknown[]; gradients?: unknown[] };
+                  typography?: { fontSizes?: unknown[]; fontFamilies?: unknown[] };
+                  spacing?:    { spacingSizes?: unknown[] };
+                };
+                styles?: unknown;
+              };
+              if (operation === "presets" || operation === "all") {
+                results.presets = {
+                  color_palette:   gs.settings?.color?.palette           ?? [],
+                  gradients:       gs.settings?.color?.gradients         ?? [],
+                  font_sizes:      gs.settings?.typography?.fontSizes    ?? [],
+                  font_families:   gs.settings?.typography?.fontFamilies ?? [],
+                  spacing_sizes:   gs.settings?.spacing?.spacingSizes    ?? [],
+                };
+              }
+              if (operation === "styles" || operation === "all") {
+                results.block_styles = gs.styles ?? {};
+              }
+            } catch { results.global_styles_raw = gsRes.body.slice(0, 2000); }
+          } else {
+            results.global_styles_error = `HTTP ${gsRes.status} — stylesheet: ${stylesheet}`;
+          }
+        } else {
+          results.global_styles_error = "Could not determine active theme stylesheet slug";
+        }
+      }
+
+      // ── allowed block types ───────────────────────────────────────────────────
+      if (operation === "blocks" || operation === "all") {
+        const bRes = await httpRequest(
+          `${WPCOM_REST_BASE}/wp/v2/sites/${enc}/block-types?per_page=100`,
+          "GET", headers
+        );
+        if (bRes.status < 400) {
+          try {
+            const blocks = JSON.parse(bRes.body) as Array<{
+              name?: string; title?: string; category?: string; description?: string;
+            }>;
+            results.allowed_blocks = blocks.map(b => ({
+              name:        b.name,
+              title:       b.title,
+              category:    b.category,
+            }));
+          } catch { results.allowed_blocks_raw = bRes.body.slice(0, 2000); }
+        } else {
+          // Fallback: use the /wp/v2/block-types endpoint via the site's REST API
+          results.allowed_blocks_error = `HTTP ${bRes.status} — try wp_theme_json on a local site`;
+        }
+      }
+
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(results, null, 2) }],
+      };
+    }
+  );
+
+  // ── wp_theme_json ─────────────────────────────────────────────────────────
+
+  server.tool(
+    "wp_theme_json",
+    "Read theme.json from the active theme on a local Studio site. " +
+    "Returns design tokens: color palette, font sizes, font families, gradients, " +
+    "spacing scale, and per-block style overrides. " +
+    "Use before generating block content to align with the site's visual design. " +
+    "Active theme is read from the SQLite database — site does not need to be running.",
+    {
+      site: z.string().describe("Site name or absolute site path"),
+      section: z.enum(["all", "colors", "fonts", "spacing", "blocks", "raw"]).default("all").describe(
+        "all=full design tokens | colors=palette+gradients | fonts=sizes+families | " +
+        "spacing=sizes+scale | blocks=per-block styles | raw=complete theme.json"
+      ),
+    },
+    async ({ site, section }) => {
+      // ── 1. resolve site ───────────────────────────────────────────────────────
+      const siteData = findSite(site) ?? getSites().find(s =>
+        s.path === path.join(STUDIO_SITES_ROOT, site)
+      );
+      if (!siteData) {
+        return {
+          content: [{ type: "text" as const, text:
+            `Site "${site}" not found. Use studio_registry to list available sites.` }],
+          isError: true,
+        };
+      }
+
+      // ── 2. get active theme slug from SQLite ─────────────────────────────────
+      const dbPath = path.join(siteData.path, "wp-content", "database", ".ht.sqlite");
+      if (!fs.existsSync(dbPath)) {
+        return {
+          content: [{ type: "text" as const, text:
+            `SQLite database not found at: ${dbPath}\n` +
+            "The site may not have been started yet — try running it once to initialise the DB." }],
+          isError: true,
+        };
+      }
+
+      let activeTheme: string | null = null;
+      try {
+        const db    = new DatabaseSync(dbPath, { open: true });
+        // Try with the standard wp_ prefix; fall back to searching all tables
+        const tables = db.prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%options'"
+        ).all() as Array<{ name: string }>;
+
+        const optTable = tables[0]?.name ?? "wp_options";
+        const row = db.prepare(
+          `SELECT option_value FROM ${optTable} WHERE option_name = 'stylesheet' LIMIT 1`
+        ).get() as { option_value?: string } | undefined;
+
+        activeTheme = row?.option_value ?? null;
+        db.close();
+      } catch (err) {
+        return {
+          content: [{ type: "text" as const, text:
+            `Failed to read SQLite database: ${err instanceof Error ? err.message : String(err)}` }],
+          isError: true,
+        };
+      }
+
+      if (!activeTheme) {
+        return {
+          content: [{ type: "text" as const, text:
+            "Could not determine active theme from the database (stylesheet option not found)." }],
+          isError: true,
+        };
+      }
+
+      // ── 3. read theme.json ────────────────────────────────────────────────────
+      const themeJsonPath = path.join(
+        siteData.path, "wp-content", "themes", activeTheme, "theme.json"
+      );
+
+      if (!fs.existsSync(themeJsonPath)) {
+        return {
+          content: [{ type: "text" as const, text:
+            `theme.json not found for active theme "${activeTheme}".\n` +
+            `Expected path: ${themeJsonPath}\n\n` +
+            "Classic (non-block) themes do not have theme.json. " +
+            "This tool is intended for block themes (Full Site Editing)." }],
+          isError: true,
+        };
+      }
+
+      let themeJson: {
+        settings?: {
+          color?:      { palette?: unknown[]; gradients?: unknown[] };
+          typography?: { fontSizes?: unknown[]; fontFamilies?: unknown[] };
+          spacing?:    { spacingSizes?: unknown[]; padding?: unknown; margin?: unknown };
+        };
+        styles?: {
+          blocks?: unknown;
+          elements?: unknown;
+          color?: unknown;
+          typography?: unknown;
+          spacing?: unknown;
+        };
+        version?: number;
+        title?:   string;
+        $schema?: string;
+      };
+
+      try {
+        themeJson = JSON.parse(fs.readFileSync(themeJsonPath, "utf-8"));
+      } catch (err) {
+        return {
+          content: [{ type: "text" as const, text:
+            `Failed to parse theme.json: ${err instanceof Error ? err.message : String(err)}` }],
+          isError: true,
+        };
+      }
+
+      // ── 4. filter by section and return ──────────────────────────────────────
+      const header = [
+        `Site:          ${siteData.name}`,
+        `Active theme:  ${activeTheme}`,
+        `theme.json:    ${themeJsonPath}`,
+        `Schema version: ${themeJson.version ?? "unknown"}`,
+        "",
+      ].join("\n");
+
+      let output: unknown;
+
+      switch (section) {
+        case "raw":
+          output = themeJson;
+          break;
+
+        case "colors":
+          output = {
+            color_palette: themeJson.settings?.color?.palette  ?? [],
+            gradients:     themeJson.settings?.color?.gradients ?? [],
+          };
+          break;
+
+        case "fonts":
+          output = {
+            font_sizes:    themeJson.settings?.typography?.fontSizes    ?? [],
+            font_families: themeJson.settings?.typography?.fontFamilies ?? [],
+          };
+          break;
+
+        case "spacing":
+          output = {
+            spacing_sizes: themeJson.settings?.spacing?.spacingSizes ?? [],
+            padding:       themeJson.settings?.spacing?.padding,
+            margin:        themeJson.settings?.spacing?.margin,
+          };
+          break;
+
+        case "blocks":
+          output = {
+            block_styles:   themeJson.styles?.blocks   ?? {},
+            element_styles: themeJson.styles?.elements ?? {},
+          };
+          break;
+
+        case "all":
+        default:
+          output = {
+            color_palette:  themeJson.settings?.color?.palette            ?? [],
+            gradients:      themeJson.settings?.color?.gradients          ?? [],
+            font_sizes:     themeJson.settings?.typography?.fontSizes     ?? [],
+            font_families:  themeJson.settings?.typography?.fontFamilies  ?? [],
+            spacing_sizes:  themeJson.settings?.spacing?.spacingSizes     ?? [],
+            block_styles:   themeJson.styles?.blocks                      ?? {},
+            element_styles: themeJson.styles?.elements                    ?? {},
+            global_styles:  {
+              color:      themeJson.styles?.color,
+              typography: themeJson.styles?.typography,
+              spacing:    themeJson.styles?.spacing,
+            },
+          };
+          break;
+      }
+
+      const text = header + JSON.stringify(output, null, 2);
+      return { content: [{ type: "text" as const, text }] };
     }
   );
 }
