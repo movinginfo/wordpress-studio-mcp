@@ -1,39 +1,36 @@
 # WordPress Studio MCP Plugin for Claude Code
 
-A hybrid [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server that connects **Claude Code** to [WordPress Studio 1.7.7](https://developer.wordpress.com/studio/) — giving Claude direct access to your local WordPress sites: filesystem, SQLite database, WP-CLI, and site registry.
+A hybrid [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server that connects **Claude Desktop** and **Claude Code** to [WordPress Studio 1.7.7](https://developer.wordpress.com/studio/) — giving Claude direct access to your local WordPress sites: filesystem, SQLite database, WP-CLI helpers, and site registry.
 
-Works alongside the Studio built-in MCP and the remote WordPress.com MCP for a total of **54 tools** across 3 servers.
+Pairs with the official [`wp-studio`](https://www.npmjs.com/package/wp-studio) CLI MCP for a total of **40 tools** across 2 servers.
 
 ---
 
-## Overview
+## Architecture
 
 ```
-Claude Code
+Claude Desktop  /  Claude Code
 │
-├── 🌐 wordpress-com          REMOTE   OAuth 2.1 PKCE  →  public-api.wordpress.com
-│                                                          14 tools (posts, stats, plugins…)
+├── 🖥  wordpress-studio      LOCAL  stdio  →  npx wp-studio@latest mcp  (Automattic official)
+│                                              13 tools — site lifecycle, WP-CLI, preview, screenshot
 │
-├── 🖥  wordpress-studio       LOCAL    stdio            →  studio mcp  (built-in)
-│                                                          13 tools (site lifecycle, WP-CLI, preview…)
-│
-└── 🔧 wordpress-studio-ext   LOCAL    stdio            →  node dist/index.js  (this project)
-                                                           27 tools (filesystem, SQLite, WP-CLI helpers…)
+└── 🔧 wordpress-studio-mcp   LOCAL  stdio  →  node dist/index.js  (this project)
+                                               27 tools — filesystem, SQLite DB, WP-CLI helpers, registry
 ```
 
 ---
 
-## Features
+## Features (27 tools)
 
-### Site Registry & Status (6 tools)
+### Site Registry & Status
 - Full site list from `~/.studio/cli.json` — names, paths, ports, auto-login URLs
-- WordPress.com OAuth token status check
-- Studio daemon health via named pipe / Unix socket
-- Per-site disk usage reporting
+- WordPress.com OAuth token status check (no token value returned)
+- Studio daemon health via named pipe
+- Per-site disk usage
 - HTTP health check with response time and WP headers
-- Raw config dump with secrets always redacted
+- Raw config dump — passwords and keys always redacted
 
-### Filesystem (6 tools)
+### Filesystem
 - Read any file inside a Studio site (theme, plugin, config) — 2 MB limit
 - Write / create files with automatic parent directory creation
 - List directories (flat or recursive up to depth 4)
@@ -41,15 +38,16 @@ Claude Code
 - Read `wp-config.php` with passwords and secret keys redacted
 - Read `wp-content/debug.log` (last N lines)
 
-### SQLite Database (5 tools)
+### SQLite Database
+- Uses Node.js built-in `node:sqlite` — no Python or native build required
 - List all tables in the site's `.ht.sqlite` database
 - Inspect column schema, types, and constraints
-- Execute read-only SELECT queries (enforced)
-- Execute write SQL — INSERT / UPDATE / DELETE
-- Export full SQL dump (schema + INSERT rows)
+- Read-only SELECT queries (enforced)
+- Write SQL — INSERT / UPDATE / DELETE
+- Full SQL dump (schema + INSERT rows)
 
-### WP-CLI Helpers (11 tools)
-- Plugin list, install, deactivate/delete
+### WP-CLI Helpers
+- Plugin list, install, deactivate / delete
 - Theme list, activate
 - User list, create administrator
 - Database search-replace (dry-run by default)
@@ -61,63 +59,98 @@ Claude Code
 
 ## Prerequisites
 
-| Requirement | Minimum | Install |
+| Requirement | Minimum | Notes |
 |---|---|---|
-| [Node.js](https://nodejs.org) | v22.0.0 | https://nodejs.org |
-| [WordPress Studio](https://developer.wordpress.com/studio/) | 1.7.7 | Download from developer.wordpress.com |
-| Studio CLI | enabled | Studio → Settings → Studio CLI → Save |
-| [Claude Code](https://claude.ai/code) | latest | https://claude.ai/code |
+| [Node.js](https://nodejs.org) | v22.5.0 | Needed for built-in `node:sqlite` |
+| [WordPress Studio](https://developer.wordpress.com/studio/) | 1.7.7 | Provides local site runtime |
+| Studio CLI (`wp-studio`) | 1.7.7 | `npm i -g wp-studio` or enabled in Studio settings |
+| [Claude Desktop](https://claude.ai/download) or [Claude Code](https://claude.ai/code) | latest | |
 
 ---
 
-## Quick Start
+## Setup
+
+### 1. Clone and build
 
 ```powershell
 git clone https://github.com/movinginfo/wordpress-studio-mcp.git
 cd wordpress-studio-mcp
-.\setup.ps1
-```
-
-Restart Claude Code, then type `/mcp` — all 3 servers should show as connected.
-
----
-
-## Manual Setup
-
-### 1. Install and build
-
-```powershell
 npm install
 npm run build
 ```
 
-### 2. Register MCP servers
+### 2a. Claude Desktop — edit `claude_desktop_config.json`
+
+Location: `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "wordpress-studio-mcp": {
+      "command": "node",
+      "args": [
+        "C:\\path\\to\\wordpress-studio-mcp\\dist\\index.js"
+      ],
+      "env": {
+        "STUDIO_HOME": "C:\\Users\\YourName\\.studio",
+        "STUDIO_SITES_ROOT": "C:\\Users\\YourName\\Studio\\sites"
+      }
+    },
+    "wordpress-studio": {
+      "command": "npx",
+      "args": ["-y", "wp-studio@latest", "mcp"]
+    }
+  }
+}
+```
+
+Restart Claude Desktop — both servers will appear as **Connectors**.
+
+### 2b. Claude Code CLI — register via `claude mcp add`
 
 ```powershell
-# Remote WordPress.com (HTTP + OAuth 2.1)
-claude mcp add --transport http --scope user wordpress-com `
-    -- https://public-api.wordpress.com/wpcom/v2/mcp/v1
-
-# Studio built-in (stdio)
-claude mcp add --scope user wordpress-studio -- studio mcp
-
-# This extension (stdio) — update the path to match your clone location
-claude mcp add --scope user wordpress-studio-ext `
+# This extension
+claude mcp add --scope user wordpress-studio-mcp `
     --env "STUDIO_HOME=$env:USERPROFILE\.studio" `
     --env "STUDIO_SITES_ROOT=$env:USERPROFILE\Studio\sites" `
     -- node "C:\path\to\wordpress-studio-mcp\dist\index.js"
+
+# Official Studio MCP (wp-studio)
+claude mcp add --scope user wordpress-studio `
+    -- npx -y wp-studio@latest mcp
 ```
 
-### 3. Authenticate to WordPress.com
+Verify with `/mcp` inside Claude Code.
 
-```powershell
-studio auth login
-```
+---
 
-### 4. Verify
+## `claude_desktop_config.json` — full reference
 
-```powershell
-claude mcp list
+```json
+{
+  "preferences": {
+    "coworkScheduledTasksEnabled": false,
+    "ccdScheduledTasksEnabled": true,
+    "sidebarMode": "code",
+    "coworkWebSearchEnabled": true
+  },
+  "mcpServers": {
+    "wordpress-studio-mcp": {
+      "command": "node",
+      "args": [
+        "C:\\Work\\Wordpress Studio MCP Plugin for Claude Code\\dist\\index.js"
+      ],
+      "env": {
+        "STUDIO_HOME": "C:\\Users\\YourName\\.studio",
+        "STUDIO_SITES_ROOT": "C:\\Users\\YourName\\Studio\\sites"
+      }
+    },
+    "wordpress-studio": {
+      "command": "npx",
+      "args": ["-y", "wp-studio@latest", "mcp"]
+    }
+  }
+}
 ```
 
 ---
@@ -131,13 +164,16 @@ wordpress-studio-mcp/
 │   ├── index.ts                  MCP server entry (stdio transport)
 │   ├── studio-config.ts          Reads ~/.studio/cli.json, resolves site paths
 │   └── tools/
-│       ├── site-registry.ts      studio_registry, studio_auth_status …
-│       ├── filesystem.ts         fs_read_file, fs_write_file …
+│       ├── site-registry.ts      studio_registry, studio_auth_status, studio_daemon_status …
+│       ├── filesystem.ts         fs_read_file, fs_write_file, fs_list_dir …
 │       ├── database.ts           db_query, db_execute, db_export_sql …
 │       └── wpcli.ts              wpcli_plugin_list, wpcli_run …
 │
 ├── dist/                         Compiled JS (after npm run build)
-├── .mcp.json                     Claude Code MCP config (all 3 servers)
+├── .claude-plugin/               Claude Code plugin manifest (Connectors UI)
+│   ├── plugin.json
+│   └── marketplace.json
+├── .mcp.json                     MCP config for Claude Code plugin system
 ├── setup.ps1                     One-command Windows setup
 ├── package.json
 └── tsconfig.json
@@ -149,8 +185,8 @@ wordpress-studio-mcp/
 
 | Variable | Default | Description |
 |---|---|---|
-| `STUDIO_HOME` | `~/.studio` | Studio config directory |
-| `STUDIO_SITES_ROOT` | `~/Studio/sites` | Root directory for local sites |
+| `STUDIO_HOME` | `~/.studio` | Studio config directory (`cli.json`, `shared.json`) |
+| `STUDIO_SITES_ROOT` | `~/Studio/sites` | Root directory for local WordPress sites |
 
 ---
 
@@ -158,9 +194,12 @@ wordpress-studio-mcp/
 
 ```
 %USERPROFILE%\
+├── AppData\Roaming\Claude\
+│   └── claude_desktop_config.json   ← Claude Desktop MCP config
+│
 ├── .studio\
 │   ├── cli.json           Site registry (id, name, path, port, phpVersion…)
-│   ├── shared.json        OAuth token, locale, selected skills
+│   ├── shared.json        OAuth token, locale
 │   └── app.json           Electron app data
 │
 └── Studio\
@@ -177,76 +216,27 @@ wordpress-studio-mcp/
 
 ---
 
-## Example Prompts
-
-```
-# List all local Studio sites
-"Show me all my local WordPress Studio sites"
-
-# Create a site and install WooCommerce
-"Create a new Studio site called 'my-shop', start it, then install and activate WooCommerce"
-
-# Inspect a theme file
-"Read the functions.php from the active theme on my 'my-shop' site"
-
-# Query the database
-"Show me all published posts from the 'my-shop' site database"
-
-# Check the error log
-"Show me the last 50 lines of the WordPress debug log for site 'my-shop'"
-
-# URL migration (dry run)
-"Dry-run search-replace http://my-shop.wp.local → https://myshop.com on site my-shop"
-
-# WordPress.com stats (remote)
-"Show me traffic stats for mysite.wordpress.com for the last 7 days"
-
-# Screenshot
-"Take a screenshot of my running 'my-shop' site"
-```
-
----
-
 ## Complete Tool Reference
 
-### Part A — `wordpress-com` (14 tools, remote HTTP)
-
-| Tool | Description |
-|---|---|
-| `wpcom-mcp-content-authoring` | Create/update/delete posts, pages, comments, media, categories, tags |
-| `wpcom-mcp-posts-search` | Search posts across WordPress.com sites |
-| `wpcom-mcp-post-get` | Get a single post by ID or URL |
-| `wpcom-mcp-site-settings` | Read all site configuration settings |
-| `wpcom-mcp-site-statistics` | Views, visitors, top content, referrers, geo, devices |
-| `wpcom-mcp-site-plugins` | Installed plugins list |
-| `wpcom-mcp-site-editor-context` | Theme presets (colors, fonts), registered blocks |
-| `wpcom-mcp-user-sites` | All your WordPress.com sites |
-| `wpcom-mcp-user-profile` | Your profile data |
-| `wpcom-mcp-user-connections` | Social/service integrations |
-| `wpcom-mcp-user-notifications` | Notification settings |
-| `wpcom-mcp-user-notifications-inbox` | Notification inbox with filters |
-| `wpcom-mcp-site-users` | Site user list with roles |
-| `wpcom-mcp-user-security` | 2FA, sessions, application passwords |
-
-### Part B — `wordpress-studio` (13 tools, local stdio)
+### Server A — `wordpress-studio` (13 tools, official Automattic — `wp-studio@1.7.7`)
 
 | Tool | Description |
 |---|---|
 | `site_create` | Create a new local Studio site |
 | `site_list` | List all local sites |
-| `site_info` | Get details for a specific site |
+| `site_info` | Details for a specific site |
 | `site_start` | Start a local site server |
 | `site_stop` | Stop a local site server |
 | `site_delete` | Delete a site (optionally including files) |
-| `preview_create` | Deploy site to WordPress.com for preview |
+| `preview_create` | Deploy to WordPress.com for a shareable preview |
 | `preview_list` | List active preview environments |
 | `preview_update` | Redeploy changes to preview |
 | `preview_delete` | Remove a preview environment |
-| `wp_cli` | Run any WP-CLI command |
+| `wp_cli` | Run any WP-CLI command on a local site |
 | `validate_blocks` | Validate Gutenberg block markup |
-| `take_screenshot` | Screenshot a running site |
+| `take_screenshot` | Screenshot a running site (desktop + mobile) |
 
-### Part C — `wordpress-studio-ext` (27 tools, this project)
+### Server B — `wordpress-studio-mcp` (27 tools, this project)
 
 **Site Registry & Status**
 
@@ -264,7 +254,7 @@ wordpress-studio-mcp/
 | Tool | Description |
 |---|---|
 | `fs_read_file` | Read any file in a site (max 2 MB) |
-| `fs_write_file` | Write/create a file (creates parent dirs) |
+| `fs_write_file` | Write / create a file (creates parent dirs) |
 | `fs_list_dir` | List directory, optionally recursive |
 | `fs_find_files` | Glob search within a site |
 | `fs_read_wp_config` | Read `wp-config.php` (passwords redacted) |
@@ -298,26 +288,46 @@ wordpress-studio-mcp/
 
 ---
 
+## Example Prompts
+
+```
+# List all local Studio sites
+"Show me all my local WordPress Studio sites"
+
+# Create a site and install WooCommerce
+"Create a new Studio site called 'my-shop', start it, then install and activate WooCommerce"
+
+# Read a theme file
+"Read the functions.php from the active theme on my 'my-shop' site"
+
+# Query the database
+"Show me all published posts from the 'my-shop' site database"
+
+# Export the full database
+"Export the 'my-shop' site database as a SQL dump"
+
+# Check the error log
+"Show me the last 50 lines of the WordPress debug log for site 'my-shop'"
+
+# URL migration dry run
+"Dry-run a search-replace from http://my-shop.local to https://myshop.com on site my-shop"
+
+# Take a screenshot
+"Take a screenshot of my running 'my-shop' site"
+
+# Flush all caches
+"Flush the WordPress cache, rewrites, and transients on site 'my-shop'"
+```
+
+---
+
 ## Security
 
 - All filesystem operations are sandboxed to `STUDIO_SITES_ROOT` — path traversal is blocked.
 - `wp-config.php` passwords, secret keys, and salts are always redacted before returning.
 - Studio config dumps redact all token, password, key, secret, and salt fields.
 - `db_query` enforces SELECT / WITH only — write operations go through `db_execute` explicitly.
-- No credentials are ever logged or returned in plain text.
-
----
-
-## OAuth 2.1 Flow (Part A — handled automatically by Claude Code)
-
-```
-1. POST  /oauth2-1/register     → dynamic client_id  (public client, no secret)
-2. GET   /oauth2-1/authorize    → browser consent     (PKCE, code_challenge S256)
-3. POST  /oauth2-1/token        → access_token        (code + code_verifier)
-4. POST  /wpcom/v2/mcp/v1       → Authorization: Bearer {access_token}
-```
-
-Token refresh is handled automatically by Claude Code.
+- Uses Node.js built-in `node:sqlite` — no native compiled binaries required.
 
 ---
 
@@ -325,19 +335,19 @@ Token refresh is handled automatically by Claude Code.
 
 | Problem | Solution |
 |---|---|
+| Server not in Connectors | Restart Claude Desktop after editing `claude_desktop_config.json` |
 | `studio: command not found` | Studio → Settings → Studio CLI → Save, restart terminal |
-| `SQLite DB not found` | Start the site first: `studio site start` or `site_start` tool |
-| `wordpress-com` returns 401 | Run `studio auth login` to refresh the OAuth token |
-| Build fails | Check Node.js version: `node --version` (needs v22+) |
-| Extension fails to start | `npm run build` then `node dist/index.js` to see errors |
-| Servers not showing in `/mcp` | Restart Claude Code |
+| `SQLite DB not found` | Start the site first: `studio site start` |
+| Build fails | Check Node.js version: `node --version` (needs v22.5+) |
+| Extension fails to start | Run `node dist/index.js` directly to see the error |
+| `wp-studio mcp` fails | Run `npx wp-studio@latest --version` to verify install |
 
 ---
 
 ## Development
 
 ```powershell
-# Watch mode (no build step needed)
+# Watch mode (tsx, no build step)
 npm run dev
 
 # Production build
@@ -349,6 +359,15 @@ npm run clean
 
 ---
 
+## Related
+
+- [WordPress Studio](https://developer.wordpress.com/studio/) — local WordPress development environment
+- [wp-studio CLI](https://www.npmjs.com/package/wp-studio) — official Studio CLI (v1.7.7) by Automattic
+- [Studio CLI docs](https://developer.wordpress.com/docs/developer-tools/studio/cli/) — full CLI reference
+- [Model Context Protocol](https://modelcontextprotocol.io) — MCP specification
+
+---
+
 ## License
 
 [MIT](LICENSE)
@@ -357,4 +376,4 @@ npm run clean
 
 ## Contributing
 
-Issues and pull requests are welcome. Please open an issue first to discuss any significant changes.
+Issues and pull requests are welcome. Please open an issue first to discuss significant changes.
