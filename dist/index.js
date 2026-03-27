@@ -18,48 +18,36 @@
  * Project location:
  *   c:\Work\Wordpress Studio MCP Plugin for Claude Code\
  */
-
-import { McpServer }           from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-
-import { registerFilesystemTools }   from "./tools/filesystem.js";
-import { registerDatabaseTools }     from "./tools/database.js";
-import { registerWpCliTools }        from "./tools/wpcli.js";
+import { registerFilesystemTools } from "./tools/filesystem.js";
+import { registerDatabaseTools } from "./tools/database.js";
+import { registerWpCliTools } from "./tools/wpcli.js";
 import { registerSiteRegistryTools } from "./tools/site-registry.js";
-import { registerRestApiTools }      from "./tools/rest-api.js";
+import { registerRestApiTools } from "./tools/rest-api.js";
 import { STUDIO_HOME, STUDIO_SITES_ROOT } from "./studio-config.js";
-
 // ─── MCP Server ───────────────────────────────────────────────────────────────
-
 const server = new McpServer({
-  name:    "wordpress-studio-mcp-extension",
-  version: "1.1.0",
+    name: "wordpress-studio-mcp-extension",
+    version: "1.1.0",
 });
-
 // ─── Register all tool groups ─────────────────────────────────────────────────
-
-registerSiteRegistryTools(server);   // studio_registry, studio_auth_status, studio_daemon_status …
-registerFilesystemTools(server);     // fs_read_file, fs_write_file, fs_list_dir, fs_find_files …
-registerDatabaseTools(server);       // db_query, db_execute, db_list_tables, db_export_sql …
-registerWpCliTools(server);          // wpcli_plugin_list, wpcli_run, wpcli_search_replace …
-registerRestApiTools(server);       // wpcom_api_get, wp_rest_get, wp_rest_routes, wp_rest_posts …
-
+registerSiteRegistryTools(server); // studio_registry, studio_auth_status, studio_daemon_status …
+registerFilesystemTools(server); // fs_read_file, fs_write_file, fs_list_dir, fs_find_files …
+registerDatabaseTools(server); // db_query, db_execute, db_list_tables, db_export_sql …
+registerWpCliTools(server); // wpcli_plugin_list, wpcli_run, wpcli_search_replace …
+registerRestApiTools(server); // wpcom_api_get, wp_rest_get, wp_rest_routes, wp_rest_posts …
 // ─── Startup banner (stderr — does not pollute the MCP stdio stream) ──────────
-
 const PROJECT_ROOT = "c:\\Work\\Wordpress Studio MCP Plugin for Claude Code";
-const pad = (s: string, n: number) => s.slice(0, n).padEnd(n);
-
-process.stderr.write(
-  "\n" +
-  "┌─────────────────────────────────────────────────────────────┐\n" +
-  "│  WordPress Studio MCP Extension  v1.1.0                     │\n" +
-  `│  Project:     ${pad(PROJECT_ROOT, 45)}│\n` +
-  `│  Studio home: ${pad(STUDIO_HOME, 45)}│\n` +
-  `│  Sites root:  ${pad(STUDIO_SITES_ROOT, 45)}│\n` +
-  "└─────────────────────────────────────────────────────────────┘\n\n"
-);
-
+const pad = (s, n) => s.slice(0, n).padEnd(n);
+process.stderr.write("\n" +
+    "┌─────────────────────────────────────────────────────────────┐\n" +
+    "│  WordPress Studio MCP Extension  v1.1.0                     │\n" +
+    `│  Project:     ${pad(PROJECT_ROOT, 45)}│\n` +
+    `│  Studio home: ${pad(STUDIO_HOME, 45)}│\n` +
+    `│  Sites root:  ${pad(STUDIO_SITES_ROOT, 45)}│\n` +
+    "└─────────────────────────────────────────────────────────────┘\n\n");
 // ─── Connect stdio transport and start serving ────────────────────────────────
-
 const transport = new StdioServerTransport();
 await server.connect(transport);
+//# sourceMappingURL=index.js.map

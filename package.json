@@ -1,7 +1,7 @@
 {
   "name": "wordpress-studio-mcp",
-  "version": "1.0.0",
-  "description": "Hybrid MCP extension for WordPress Studio 1.7.7 — filesystem, SQLite DB, logs, site registry, and WP-CLI passthrough",
+  "version": "1.1.0",
+  "description": "Hybrid MCP extension for WordPress Studio 1.7.7 — filesystem, SQLite DB, logs, site registry, WP-CLI passthrough, and REST API",
   "type": "module",
   "bin": {
     "wordpress-studio-mcp": "dist/index.js"

@@ -1,6 +1,6 @@
 # WordPress Studio MCP
 
-> Give Claude direct access to your local WordPress sites — read files, query databases, run WP-CLI, and inspect site status. Part of a four-component AI-powered WordPress development stack.
+> Give Claude direct access to your local WordPress sites — read files, query databases, run WP-CLI, call the WordPress REST API, and inspect site status. Part of a four-component AI-powered WordPress development stack.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-v22.5%2B-green.svg)](https://nodejs.org)
@@ -15,7 +15,7 @@
 - [The Complete WordPress AI Stack](#the-complete-wordpress-ai-stack)
 - [Install — Claude Desktop](#install--claude-desktop)
 - [Install — Claude Code IDE](#install--claude-code-ide)
-- [wordpress-studio-mcp Tools (27)](#wordpress-studio-mcp--27-tools--this-project)
+- [wordpress-studio-mcp Tools (40)](#wordpress-studio-mcp--40-tools--this-project)
 - [wordpress-studio Tools (13)](#wordpress-studio--13-tools--automattic-wp-studio1777)
 - [WP-CLI Reference](#wp-cli-reference)
 - [wordpress.com MCP Tools (17)](#wordpresscom-mcp--17-tools--automattic-remote-http)
@@ -49,12 +49,12 @@ Claude Desktop / Claude Code
 │                                                              WP-CLI, preview, screenshot
 │
 └── 🔧 wordpress-studio-mcp     LOCAL   stdio              →  node dist/index.js
-    This project · github.com/movinginfo/wordpress-studio-mcp  27 tools — filesystem,
+    This project · github.com/movinginfo/wordpress-studio-mcp  40 tools — filesystem,
                                                                SQLite DB, WP-CLI helpers,
-                                                               site registry
+                                                               site registry, REST API
 ```
 
-**Total: 4 commands + 57 MCP tools** covering the full WordPress development lifecycle.
+**Total: 4 commands + 70 MCP tools** covering the full WordPress development lifecycle.
 
 ---
 
@@ -134,7 +134,7 @@ This adds the `/design-site`, `/preview-designs`, `/quick-build`, `/site-specifi
 Fully quit Claude Desktop (system tray → Quit) and reopen. Click the **⊕ plug icon** in the chat input:
 
 ```
-✓ wordpress-studio-mcp    27 tools
+✓ wordpress-studio-mcp    40 tools
 ✓ wordpress-studio        13 tools
 ✓ wordpress-com           17 tools   (after plugin install)
 ```
@@ -217,7 +217,7 @@ Add inside `mcpServers`:
 
 ## Tool Reference
 
-### `wordpress-studio-mcp` · 27 tools · this project
+### `wordpress-studio-mcp` · 40 tools · this project
 
 #### Site Registry & Status
 
@@ -266,6 +266,33 @@ Add inside `mcpServers`:
 | `wpcli_cache_flush` | Flush object cache, rewrite rules, and all transients |
 | `wpcli_core_update` | Update WordPress core to latest or a specific version |
 | `wpcli_run` | Run any WP-CLI command — full passthrough via `studio wp` |
+
+#### WordPress.com Remote API
+
+Requires WordPress.com OAuth token in `~/.studio/shared.json` (sign in through Studio Desktop).
+
+| Tool | Description |
+|---|---|
+| `wpcom_api_get` | Authenticated GET to any WordPress.com API endpoint (`/rest/v1.1/`, `/wp/v2/`, `/wpcom/v2/`) |
+| `wpcom_api_post` | POST / PUT / PATCH / DELETE — requires `confirmed: true` |
+| `wpcom_site_info` | Site metadata: URL, name, description, plan, jetpack status |
+| `wpcom_posts` | List posts with filters: status, type, author, search, per_page, page |
+| `wpcom_stats` | Traffic summary: views, visitors, likes, comments for a date range |
+| `wpcom_media` | List media library items with MIME-type and date filters |
+
+#### Local Site WP REST API
+
+Calls the WordPress REST API directly on a running Studio site (`http://localhost:{port}/wp-json/`). Supports WordPress Application Passwords for write access.
+
+| Tool | Description |
+|---|---|
+| `wp_rest_get` | GET any endpoint on a local site, e.g. `/wp/v2/posts` |
+| `wp_rest_request` | POST / PUT / PATCH / DELETE — requires `confirmed: true` |
+| `wp_rest_routes` | List all registered REST routes and their supported methods |
+| `wp_rest_posts` | List posts via `/wp/v2/posts` with status, search, per_page filters |
+| `wp_rest_users` | List users via `/wp/v2/users` |
+| `wp_rest_taxonomies` | List categories (`/wp/v2/categories`) or tags (`/wp/v2/tags`) |
+| `wp_rest_settings` | Read site settings via `/wp/v2/settings` (requires auth) |
 
 ---
 
@@ -618,6 +645,12 @@ Dry-run search-replace http://my-shop.local → https://myshop.com on site "my-s
 Show me traffic stats for mysite.wordpress.com for the last 30 days
 Search for all draft posts on mysite.wordpress.com
 List all active plugins on mysite.wordpress.com
+
+# Local REST API
+List all available REST API routes on site "my-shop"
+Get all published posts from site "my-shop" via the REST API
+Show site settings for "my-shop" using Application Password user:password
+Create a draft post on "my-shop" via wp_rest_request (requires confirmation)
 ```
 
 ---
@@ -678,7 +711,8 @@ wordpress-studio-mcp/
 │       ├── site-registry.ts      studio_registry, studio_daemon_status …
 │       ├── filesystem.ts         fs_read_file, fs_write_file, fs_find_files …
 │       ├── database.ts           db_query, db_execute, db_export_sql …
-│       └── wpcli.ts              wpcli_plugin_list, wpcli_run …
+│       ├── wpcli.ts              wpcli_plugin_list, wpcli_run …
+│       └── rest-api.ts           wpcom_api_get, wp_rest_get, wp_rest_posts …
 │
 ├── dist/                         Compiled JS — generated by npm run build
 ├── .claude-plugin/
@@ -699,6 +733,8 @@ wordpress-studio-mcp/
 - **Read-only SQL** — `db_query` rejects any statement not starting with `SELECT` or `WITH`. Writes go through `db_execute` explicitly.
 - **No native binaries** — uses Node.js built-in `node:sqlite` (stable since v22.5). No Python, no `node-gyp`.
 - **WordPress.com write safety** — `wpcom-mcp-content-authoring` requires `user_confirmed: true` in every write/delete call. Permanent deletions (categories, tags) additionally require `confirm_permanent_delete: true`.
+- **REST API write safety** — `wpcom_api_post` and `wp_rest_request` require `confirmed: true` in every mutating call. No write operations are auto-executed.
+- **Application Passwords** — local REST API auth uses WordPress Application Passwords (WordPress 5.6+). Generate in WP Admin → Users → Profile → Application Passwords. Never pass plain login passwords.
 
 ---
 
@@ -715,6 +751,8 @@ wordpress-studio-mcp/
 | `wp-studio mcp` fails | Run `npx wp-studio@latest --version` to verify the package downloads |
 | `wpcli_run` returns empty | Make sure the site is running: `studio_site_health` or `site_start` |
 | wordpress.com MCP returns 401 | Re-authenticate: Studio Desktop → WordPress.com → Log in again |
+| `wp_rest_*` returns 401 | Generate an Application Password in WP Admin → Users → Profile |
+| `wp_rest_*` connection refused | Site must be running — use `site_start` or `studio_site_health` first |
 | `/quick-build` can't find Studio | Run `studio --version` in terminal — CLI must be in PATH |
 
 ---
