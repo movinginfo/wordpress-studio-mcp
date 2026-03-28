@@ -472,6 +472,71 @@ studio_site_use_mkcert  site:i-help.us  domain:i-help.us  confirmed:true
 
 **Full manual and automation scripts:** [`https-certificates/`](https-certificates/)
 
+#### WordPress Abilities API & MCP Adapter
+
+The [WordPress MCP Adapter](https://github.com/WordPress/mcp-adapter) bridges the [Abilities API](https://github.com/WordPress/abilities-api) to MCP, letting Claude discover and invoke capabilities registered by any WordPress plugin, theme, or core — programmatically.
+
+**How it works:**
+```
+WordPress plugin registers ability with mcp.public=true
+  → MCP Adapter exposes it at /wp-json/mcp/mcp-adapter-default-server
+  → wp_abilities_discover lists it
+  → wp_abilities_call executes it with params
+  → result returned to Claude
+```
+
+| Tool | Description |
+|---|---|
+| `wp_mcp_adapter_setup` | Install `abilities-api` + `mcp-adapter` plugins on a Studio site from GitHub. Creates an Application Password stored in `~/.studio/mcp-app-passwords.json` for HTTP auth. |
+| `wp_abilities_discover` | List all abilities with `mcp.public=true`. Uses HTTP MCP adapter endpoint when installed, falls back to WP-CLI eval for direct PHP access. |
+| `wp_abilities_info` | Get full schema for a specific ability — parameters, return type, description, permission requirements. |
+| `wp_abilities_call` | Execute an ability with parameters. Uses `mcp-adapter/execute-ability` via HTTP or WP-CLI eval fallback. |
+
+**Transport modes** (`via` parameter):
+- `auto` — try HTTP first (MCP adapter endpoint), fall back to WP-CLI eval
+- `http` — use HTTP JSON-RPC only (requires adapter installed + app password)
+- `wpcli` — use WP-CLI eval directly (no HTTP auth, works without adapter plugin)
+
+**Setup workflow:**
+```
+1. wp_mcp_adapter_setup  site:mysite  confirmed:true
+   → installs abilities-api + mcp-adapter from GitHub
+   → runs composer install (if composer available)
+   → creates Application Password for HTTP auth
+
+2. wp_abilities_discover  site:mysite
+   → lists all public abilities registered on the site
+
+3. wp_abilities_info  site:mysite  ability:my-plugin/my-ability
+   → returns parameters schema, description, type
+
+4. wp_abilities_call  site:mysite  ability:my-plugin/my-ability  params:{"key":"value"}
+   → executes the ability, returns result
+```
+
+**Registering your own ability** (in a WordPress plugin or functions.php):
+```php
+wp_register_ability([
+    'name'        => 'my-plugin/send-email',
+    'label'       => 'Send Email',
+    'description' => 'Send an email to a WordPress user',
+    'mcp.public'  => true,
+    'callback'    => function(array $params): array {
+        wp_mail($params['to'], $params['subject'], $params['message']);
+        return ['sent' => true];
+    },
+]);
+```
+
+The MCP adapter endpoint lives at:
+```
+http://localhost:PORT/wp-json/mcp/mcp-adapter-default-server
+```
+
+It exposes three built-in meta-tools — `mcp-adapter/discover-abilities`, `mcp-adapter/get-ability-info`, `mcp-adapter/execute-ability` — keeping AI context clean regardless of how many abilities exist.
+
+> **Note:** Requires WordPress 6.8+, PHP 7.4+, and Composer (for vendor dependencies). Use `via:wpcli` as a fallback when the HTTP adapter is not yet installed.
+
 #### Administration & Security
 
 Tools derived from the [WordPress Advanced Administration Handbook](https://github.com/WordPress/Advanced-administration-handbook). Cover hardening, configuration management, backup, cron, and updates.

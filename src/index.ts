@@ -31,13 +31,14 @@ import { registerBlueprintTools }   from "./tools/blueprints.js";
 import { registerVipDesignTools }   from "./tools/vip-design.js";
 import { registerAdminTools }       from "./tools/admin.js";
 import { registerDomainTools }      from "./tools/domain.js";
+import { registerAbilitiesTools }   from "./tools/abilities.js";
 import { STUDIO_HOME, STUDIO_SITES_ROOT } from "./studio-config.js";
 
 // ─── MCP Server ───────────────────────────────────────────────────────────────
 
 const server = new McpServer({
   name:    "wordpress-studio-mcp-extension",
-  version: "0.1.11",
+  version: "0.1.12",
 });
 
 // ─── Register all tool groups ─────────────────────────────────────────────────
@@ -51,6 +52,7 @@ registerBlueprintTools(server);     // studio_blueprint_list, studio_blueprint_g
 registerVipDesignTools(server);     // vip_design_tokens, vip_design_theme_json
 registerAdminTools(server);         // wp_config_set, wp_security_audit, wp_php_info, wpcli_db_backup, wpcli_cron_list, wpcli_update_all
 registerDomainTools(server);        // studio_site_set_domain, studio_site_remove_domain, studio_domain_list, studio_site_use_mkcert
+registerAbilitiesTools(server);    // wp_mcp_adapter_setup, wp_abilities_discover, wp_abilities_info, wp_abilities_call
 
 // ─── Startup banner (stderr — does not pollute the MCP stdio stream) ──────────
 
@@ -60,7 +62,7 @@ const pad = (s: string, n: number) => s.slice(0, n).padEnd(n);
 process.stderr.write(
   "\n" +
   "┌─────────────────────────────────────────────────────────────┐\n" +
-  "│  WordPress Studio MCP Extension  v0.1.11                    │\n" +
+  "│  WordPress Studio MCP Extension  v0.1.12                    │\n" +
   `│  Project:     ${pad(PROJECT_ROOT, 45)}│\n` +
   `│  Studio home: ${pad(STUDIO_HOME, 45)}│\n` +
   `│  Sites root:  ${pad(STUDIO_SITES_ROOT, 45)}│\n` +
