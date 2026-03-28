@@ -472,6 +472,57 @@ studio_site_use_mkcert  site:i-help.us  domain:i-help.us  confirmed:true
 
 **Full manual and automation scripts:** [`https-certificates/`](https-certificates/)
 
+#### Xdebug
+
+[Xdebug](https://xdebug.org/) step-debugging for WordPress Studio sites, powered by PHP-WASM. Connect VS Code or PhpStorm to debug plugins, themes, and core code with breakpoints.
+
+**Studio constraints:**
+- Only **one site** can have Xdebug enabled at a time — enabling on a second site auto-disables the first
+- Xdebug **slows PHP** — disable when not actively debugging
+- Xdebug port: **9003** | Server path: `/wordpress` → site folder on disk
+
+| Tool | Description |
+|---|---|
+| `studio_xdebug_enable` | Enable Xdebug on a site. Auto-disables it on any other active site first. Patches `enableXdebug:true` in `~/.studio/cli.json`. Restart site to activate. |
+| `studio_xdebug_disable` | Disable Xdebug and restore normal PHP performance. |
+| `studio_xdebug_status` | Show which site has Xdebug on + port, path mappings, and connection details. |
+| `studio_xdebug_ide_config` | Generate VS Code `.vscode/launch.json` (optionally write to disk) or PhpStorm setup guide. |
+
+**Quick workflow:**
+```
+1. studio_xdebug_enable  site:mysite  confirmed:true
+   → patches cli.json, shows restart reminder
+
+2. Restart site in Studio (stop → start)
+
+3. studio_xdebug_ide_config  site:mysite  ide:vscode  write_file:true
+   → writes .vscode/launch.json with correct pathMappings
+
+4. Open site folder in VS Code → F5 → set breakpoints → load site in browser
+```
+
+**VS Code `launch.json` (auto-generated):**
+```json
+{
+  "configurations": [{
+    "name": "Listen for Xdebug (WordPress Studio)",
+    "type": "php",
+    "request": "launch",
+    "port": 9003,
+    "pathMappings": {
+      "/wordpress": "/Users/you/Studio/mysite"
+    }
+  }]
+}
+```
+
+**PhpStorm server settings:**
+- Host: `localhost` · Port: `8883` (your site port)
+- Path mapping: site folder → `/wordpress` (absolute path on server)
+- Enable "Start listening for PHP Debug Connections"
+
+Reference: [Xdebug in WordPress Studio](https://developer.wordpress.com/docs/developer-tools/studio/xdebug/)
+
 #### WordPress Abilities API & MCP Adapter
 
 The [WordPress MCP Adapter](https://github.com/WordPress/mcp-adapter) bridges the [Abilities API](https://github.com/WordPress/abilities-api) to MCP, letting Claude discover and invoke capabilities registered by any WordPress plugin, theme, or core — programmatically.
