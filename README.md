@@ -50,7 +50,7 @@ Claude Desktop / Claude Code
 │                                                              WP-CLI, preview, screenshot
 │
 └── 🔧 wordpress-studio-mcp     LOCAL   stdio              →  node dist/index.js
-    This project · github.com/movinginfo/wordpress-studio-mcp  54 tools — filesystem,
+    This project · github.com/movinginfo/wordpress-studio-mcp  57 tools — filesystem,
                                                                SQLite DB, WP-CLI, REST API,
                                                                security audit, wp-config mgmt,
                                                                theme tokens, blueprints,
@@ -58,7 +58,7 @@ Claude Desktop / Claude Code
                                                                VIP Design System
 ```
 
-**Total: 4 commands + 84 MCP tools** covering the full WordPress development lifecycle.
+**Total: 4 commands + 87 MCP tools** covering the full WordPress development lifecycle.
 
 ---
 
@@ -138,7 +138,7 @@ This adds the `/design-site`, `/preview-designs`, `/quick-build`, `/site-specifi
 Fully quit Claude Desktop (system tray → Quit) and reopen. Click the **⊕ plug icon** in the chat input:
 
 ```
-✓ wordpress-studio-mcp    54 tools
+✓ wordpress-studio-mcp    57 tools
 ✓ wordpress-studio        13 tools
 ✓ wordpress-com           17 tools   (after plugin install)
 ```
@@ -221,7 +221,7 @@ Add inside `mcpServers`:
 
 ## Tool Reference
 
-### `wordpress-studio-mcp` · 54 tools · this project
+### `wordpress-studio-mcp` · 57 tools · this project
 
 #### Site Registry & Status
 
@@ -341,6 +341,39 @@ JSON recipes for creating reproducible Studio sites. Same format as WordPress Pl
 | `studio_blueprint_list` | List the 3 built-in featured blueprints (Quick Start, Development, Commerce) with full step definitions |
 | `studio_blueprint_generate` | Snapshot an existing site into a reusable blueprint JSON — captures active plugins, theme, site options, PHP/WP versions, wp-config constants |
 | `studio_blueprint_apply` | Apply a blueprint JSON to an existing Studio site — requires `confirmed: true` |
+
+#### Custom Domain Mapping
+
+Map a real domain (e.g. `testmysite.com`) to a local Studio site so it opens as `http://testmysite.com` instead of `http://localhost:8883`. Essential when copying a live site locally — keeps all WordPress URLs, media paths, and redirects consistent.
+
+| Tool | Description |
+|---|---|
+| `studio_site_set_domain` | Map a domain to a local site: adds `127.0.0.1 domain` to the OS hosts file, registers in Studio CLI, runs `search-replace` on all DB URLs, writes `WP_HOME`/`WP_SITEURL` to `wp-config.php`. Use `confirmed: false` to preview. |
+| `studio_site_remove_domain` | Revert back to `http://localhost:PORT` — removes hosts entry, clears Studio domain config, search-replaces DB, removes wp-config constants. |
+| `studio_domain_list` | List all custom domain mappings and show the current hosts file Studio block. |
+
+**How it works (from [Automattic/studio](https://github.com/Automattic/studio) source):**
+```
+http://testmysite.com
+  → hosts file: 127.0.0.1 testmysite.com   ← added by studio_site_set_domain
+  → Studio proxy on port 80 receives request
+  → proxy looks up domain → port 8883
+  → forwards to http://localhost:8883
+  → WordPress: WP_HOME = WP_SITEURL = http://testmysite.com ✓
+```
+
+**Workflow — copy live site to Studio:**
+```
+1. studio site create  name:testmysite          → localhost:8883
+2. Import DB from live site via wpcli_db_backup + wp db import
+3. Copy wp-content/ files with fs_write_file or rsync
+4. studio_site_set_domain domain:testmysite.com confirmed:true
+5. Restart site in Studio
+6. Open http://testmysite.com  ← identical to live
+```
+
+> **Windows:** Writing to `C:\Windows\System32\drivers\etc\hosts` needs Administrator.
+> If auto-write fails, the tool prints the exact line to add manually.
 
 #### Administration & Security
 

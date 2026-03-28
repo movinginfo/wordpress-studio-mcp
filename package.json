@@ -1,6 +1,6 @@
 {
   "name": "wordpress-studio-mcp",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Hybrid MCP extension for WordPress Studio 1.7.7 — filesystem, SQLite DB, WP-CLI, REST API, security audit, wp-config management, and VIP Design System",
   "type": "module",
   "bin": {

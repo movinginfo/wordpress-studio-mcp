@@ -30,6 +30,7 @@ import { registerRestApiTools }      from "./tools/rest-api.js";
 import { registerBlueprintTools }   from "./tools/blueprints.js";
 import { registerVipDesignTools }   from "./tools/vip-design.js";
 import { registerAdminTools }       from "./tools/admin.js";
+import { registerDomainTools }      from "./tools/domain.js";
 import { STUDIO_HOME, STUDIO_SITES_ROOT } from "./studio-config.js";
 
 // ─── MCP Server ───────────────────────────────────────────────────────────────
@@ -49,6 +50,7 @@ registerRestApiTools(server);       // wpcom_api_get, wp_rest_get, wpcom_mcp_cal
 registerBlueprintTools(server);     // studio_blueprint_list, studio_blueprint_generate, studio_blueprint_apply
 registerVipDesignTools(server);     // vip_design_tokens, vip_design_theme_json
 registerAdminTools(server);         // wp_config_set, wp_security_audit, wp_php_info, wpcli_db_backup, wpcli_cron_list, wpcli_update_all
+registerDomainTools(server);        // studio_site_set_domain, studio_site_remove_domain, studio_domain_list
 
 // ─── Startup banner (stderr — does not pollute the MCP stdio stream) ──────────
 
@@ -58,7 +60,7 @@ const pad = (s: string, n: number) => s.slice(0, n).padEnd(n);
 process.stderr.write(
   "\n" +
   "┌─────────────────────────────────────────────────────────────┐\n" +
-  "│  WordPress Studio MCP Extension  v0.1.8                     │\n" +
+  "│  WordPress Studio MCP Extension  v0.1.9                     │\n" +
   `│  Project:     ${pad(PROJECT_ROOT, 45)}│\n` +
   `│  Studio home: ${pad(STUDIO_HOME, 45)}│\n` +
   `│  Sites root:  ${pad(STUDIO_SITES_ROOT, 45)}│\n` +
