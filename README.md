@@ -362,18 +362,44 @@ http://testmysite.com
   → WordPress: WP_HOME = WP_SITEURL = http://testmysite.com ✓
 ```
 
+**The solution — 4 automatic steps:**
+
+| Step | What happens |
+|------|-------------|
+| **1. Hosts file** | `127.0.0.1 testmysite.com` added to `C:\Windows\System32\drivers\etc\hosts` — OS resolves the domain to your machine |
+| **2. Studio CLI** | `customDomain` registered in `~/.studio/cli.json` — Studio proxy routes port 80 → localhost:8883 |
+| **3. Database** | `wp search-replace` updates all stored URLs, post content, upload paths (497 replacements on a fresh site) |
+| **4. wp-config.php** | `WP_HOME` and `WP_SITEURL` constants written as a safety fallback |
+
+**Usage:**
+```
+studio_site_set_domain  site:wordptest.com  domain:testmysite.com  confirmed:true
+```
+
+Use `confirmed: false` first to preview all steps without applying.
+
+**One last step — Windows hosts file (requires Administrator):**
+
+Writing to `C:\Windows\System32\drivers\etc\hosts` requires elevated privileges. If the auto-write fails, open **PowerShell as Administrator** and run:
+
+```powershell
+Add-Content -Path "C:\Windows\System32\drivers\etc\hosts" -Value "`n# BEGIN WordPress Studio`n127.0.0.1 testmysite.com # Studio port 8883`n# END WordPress Studio"
+```
+
+Then:
+1. **Restart** the site in Studio (stop → start)
+2. Open **http://testmysite.com** in your browser
+3. The site loads exactly as if it's running on the real domain
+
 **Workflow — copy live site to Studio:**
 ```
 1. studio site create  name:testmysite          → localhost:8883
 2. Import DB from live site via wpcli_db_backup + wp db import
 3. Copy wp-content/ files with fs_write_file or rsync
-4. studio_site_set_domain domain:testmysite.com confirmed:true
-5. Restart site in Studio
-6. Open http://testmysite.com  ← identical to live
+4. studio_site_set_domain site:testmysite domain:testmysite.com confirmed:true
+5. Run PowerShell hosts command as Administrator (if auto-write failed)
+6. Restart site in Studio → open http://testmysite.com  ← identical to live
 ```
-
-> **Windows:** Writing to `C:\Windows\System32\drivers\etc\hosts` needs Administrator.
-> If auto-write fails, the tool prints the exact line to add manually.
 
 #### Administration & Security
 
