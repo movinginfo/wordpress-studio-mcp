@@ -4,6 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-v22.5%2B-green.svg)](https://nodejs.org)
+[![Version](https://img.shields.io/badge/version-0.1.8-blue.svg)](https://github.com/movinginfo/wordpress-studio-mcp/releases)
 [![WordPress Studio](https://img.shields.io/badge/WordPress%20Studio-1.7.7-3858e9.svg)](https://developer.wordpress.com/studio/)
 [![MCP](https://img.shields.io/badge/MCP-stdio-orange.svg)](https://modelcontextprotocol.io)
 [![GitHub](https://img.shields.io/badge/GitHub-movinginfo%2Fwordpress--studio--mcp-black.svg)](https://github.com/movinginfo/wordpress-studio-mcp)
@@ -15,7 +16,7 @@
 - [The Complete WordPress AI Stack](#the-complete-wordpress-ai-stack)
 - [Install — Claude Desktop](#install--claude-desktop)
 - [Install — Claude Code IDE](#install--claude-code-ide)
-- [wordpress-studio-mcp Tools (48)](#wordpress-studio-mcp--48-tools--this-project)
+- [wordpress-studio-mcp Tools (54)](#wordpress-studio-mcp--54-tools--this-project)
 - [wordpress-studio Tools (13)](#wordpress-studio--13-tools--automattic-wp-studio1777)
 - [WP-CLI Reference](#wp-cli-reference)
 - [wordpress.com MCP Tools (17)](#wordpresscom-mcp--17-tools--automattic-remote-http)
@@ -49,14 +50,15 @@ Claude Desktop / Claude Code
 │                                                              WP-CLI, preview, screenshot
 │
 └── 🔧 wordpress-studio-mcp     LOCAL   stdio              →  node dist/index.js
-    This project · github.com/movinginfo/wordpress-studio-mcp  48 tools — filesystem,
+    This project · github.com/movinginfo/wordpress-studio-mcp  54 tools — filesystem,
                                                                SQLite DB, WP-CLI, REST API,
+                                                               security audit, wp-config mgmt,
                                                                theme tokens, blueprints,
                                                                WP.com MCP proxy,
                                                                VIP Design System
 ```
 
-**Total: 4 commands + 78 MCP tools** covering the full WordPress development lifecycle.
+**Total: 4 commands + 84 MCP tools** covering the full WordPress development lifecycle.
 
 ---
 
@@ -136,7 +138,7 @@ This adds the `/design-site`, `/preview-designs`, `/quick-build`, `/site-specifi
 Fully quit Claude Desktop (system tray → Quit) and reopen. Click the **⊕ plug icon** in the chat input:
 
 ```
-✓ wordpress-studio-mcp    48 tools
+✓ wordpress-studio-mcp    54 tools
 ✓ wordpress-studio        13 tools
 ✓ wordpress-com           17 tools   (after plugin install)
 ```
@@ -219,7 +221,7 @@ Add inside `mcpServers`:
 
 ## Tool Reference
 
-### `wordpress-studio-mcp` · 48 tools · this project
+### `wordpress-studio-mcp` · 54 tools · this project
 
 #### Site Registry & Status
 
@@ -340,6 +342,39 @@ JSON recipes for creating reproducible Studio sites. Same format as WordPress Pl
 | `studio_blueprint_generate` | Snapshot an existing site into a reusable blueprint JSON — captures active plugins, theme, site options, PHP/WP versions, wp-config constants |
 | `studio_blueprint_apply` | Apply a blueprint JSON to an existing Studio site — requires `confirmed: true` |
 
+#### Administration & Security
+
+Tools derived from the [WordPress Advanced Administration Handbook](https://github.com/WordPress/Advanced-administration-handbook). Cover hardening, configuration management, backup, cron, and updates.
+
+| Tool | Description |
+|---|---|
+| `wp_config_set` | Add, update, or remove any constant in `wp-config.php` without rewriting the file. Auto-backs up to `wp-config.php.bak`. Supports string, boolean, integer, null (remove). |
+| `wp_security_audit` | Security checklist: WP_DEBUG off, DISALLOW_FILE_EDIT/MODS, FORCE_SSL_ADMIN, table prefix ≠ `wp_`, no `admin` username, WP_AUTO_UPDATE_CORE, WP_DEBUG_DISPLAY, world-writable files. Returns pass/warn/fail per item. |
+| `wp_php_info` | PHP runtime: version, memory_limit, upload_max_filesize, post_max_size, max_execution_time, WP_MEMORY_LIMIT, WP_MAX_MEMORY_LIMIT, WP_DEBUG, SAVEQUERIES, DISABLE_WP_CRON. Site must be running. |
+| `wpcli_db_backup` | Export database to `.sql` file. Default path: `~/Studio/backups/{site}-{YYYY-MM-DD}.sql`. Always run before upgrades or destructive changes. |
+| `wpcli_cron_list` | List all scheduled cron events — hook, next run, interval, args. Audit cron load or verify DISABLE_WP_CRON setup. |
+| `wpcli_update_all` | Update all plugins and/or themes. Supports `dry_run: true` to preview available updates first. |
+
+**Common hardening workflow:**
+```
+wp_security_audit site:mysite           → identify gaps
+wp_config_set constant:DISALLOW_FILE_EDIT value:true
+wp_config_set constant:DISALLOW_FILE_MODS value:true
+wp_config_set constant:WP_AUTO_UPDATE_CORE value:"minor"
+wpcli_db_backup site:mysite             → snapshot before changes
+wpcli_update_all site:mysite what:both  → apply updates
+wp_security_audit site:mysite           → verify resolved
+```
+
+**Debug mode toggle (safe pattern):**
+```
+wp_config_set constant:WP_DEBUG value:true
+wp_config_set constant:WP_DEBUG_LOG value:true
+wp_config_set constant:WP_DEBUG_DISPLAY value:false
+fs_read_error_log site:mysite lines:50  → tail the log
+wp_config_set constant:WP_DEBUG value:false  → disable when done
+```
+
 #### VIP Design System
 
 Automattic's own design system ([github.com/Automattic/vip-design-system](https://github.com/Automattic/vip-design-system)) — the same token/component library used across WordPress.com, VIP, and Jetpack. Built on Theme UI + Radix UI.
@@ -405,6 +440,35 @@ Automattic's own design system ([github.com/Automattic/vip-design-system](https:
 | `wp_cli` | Run any WP-CLI command on a local site |
 | `validate_blocks` | Validate Gutenberg block markup |
 | `take_screenshot` | Screenshot a running site (desktop 1040 px + mobile 390 px) |
+
+**Implementation notes (from Studio 1.7.7 source):**
+- `validate_blocks` and `take_screenshot` use **Playwright/Chromium** — site must be running
+- `wp_cli` auto-validates block content before `post create/update --post_content=…`
+- Auto-login URL pattern: `{siteUrl}/studio-auto-login?redirect_to=/wp-admin/post-new.php`
+- Uses `@anthropic-ai/claude-agent-sdk` (`createSdkMcpServer`) internally, not raw MCP SDK
+- Skills are installed to `.agents/skills/{id}/` with a symlink from `.claude/skills/{id}/`
+- `STUDIO.md` is auto-updated in each site root on every open
+
+#### Capability split between this plugin and official `wordpress-studio`
+
+| Capability | `wordpress-studio` (Automattic) | `wordpress-studio-mcp` (this project) |
+|---|---|---|
+| Playwright block validation | ✅ `validate_blocks` | — |
+| Playwright full-page screenshots | ✅ `take_screenshot` (desktop + mobile) | — |
+| Site lifecycle (create/start/stop/delete) | ✅ | — |
+| WordPress.com preview deploy | ✅ `preview_create/update/delete` | — |
+| Filesystem read / write | — | ✅ `fs_read_file`, `fs_write_file` |
+| SQLite database access (no running site) | — | ✅ `db_query`, `db_execute`, `db_export_sql` |
+| WordPress error log | — | ✅ `fs_read_error_log` |
+| WP-CLI (no running site required) | — | ✅ `wpcli_run` (direct phar call) |
+| Site registry + health check | — | ✅ `studio_registry`, `studio_site_health` |
+| WordPress.com REST API | — | ✅ `wpcom_api_get`, `wpcom_mcp_call` |
+| Local WP REST API | — | ✅ `wp_rest_get` |
+| Blueprints (generate + apply) | — | ✅ `studio_blueprint_generate/apply` |
+| VIP Design System tokens | — | ✅ `vip_design_tokens`, `vip_design_theme_json` |
+| theme.json reader (no running site) | — | ✅ `wp_theme_json` |
+
+Both servers are complementary — install both for the full stack.
 
 ---
 
