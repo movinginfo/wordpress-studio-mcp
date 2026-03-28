@@ -7,7 +7,9 @@
 
 ## Goal
 
-Register the existing `wordpress-studio-mcp` stdio MCP server as a GitHub Copilot MCP provider inside VS Code, so Copilot Chat gets all 61 tools (filesystem, SQLite DB, WP-CLI, REST API, Xdebug, etc.) the same way Claude Code does today.
+Register the existing `wordpress-studio-mcp` stdio MCP server as a GitHub Copilot MCP provider inside VS Code, so Copilot Chat gets all tools (filesystem, SQLite DB, WP-CLI, REST API, Xdebug, etc.) the same way Claude Code does today.
+
+> **Note:** Tool count changes with each server release. The `description` field in `package.json` uses "tools for WordPress Studio sites" rather than a hardcoded number.
 
 ---
 
@@ -29,9 +31,9 @@ New project at `C:\Work\vscode-wordpress-studio-mcp\` (separate from the MCP ser
 vscode-wordpress-studio-mcp/
 ├── package.json          VS Code extension manifest + contributes
 ├── src/
-│   └── extension.ts     Activation + path detection (~120 lines)
-├── tsconfig.json
-├── .vscodeignore
+│   └── extension.ts     Activation + path detection (~150 lines)
+├── tsconfig.json         CommonJS output (VS Code extension requirement)
+├── .vscodeignore         Excludes src/, tsconfig.json, *.map, node_modules/
 └── README.md
 ```
 
@@ -43,11 +45,12 @@ vscode-wordpress-studio-mcp/
 {
   "name": "vscode-wordpress-studio-mcp",
   "displayName": "WordPress Studio MCP",
-  "description": "Registers wordpress-studio-mcp as a GitHub Copilot MCP provider — 61 tools for WordPress Studio sites",
+  "description": "Registers wordpress-studio-mcp as a GitHub Copilot MCP provider — tools for WordPress Studio sites",
   "publisher": "movinginfo",
   "version": "0.1.0",
   "engines": { "vscode": "^1.99.0" },
   "categories": ["AI", "Other"],
+  "keywords": ["wordpress", "mcp", "copilot", "studio", "wpcli"],
   "activationEvents": ["onStartupFinished"],
   "main": "./dist/extension.js",
   "contributes": {
@@ -69,11 +72,43 @@ vscode-wordpress-studio-mcp/
       "properties": {
         "wordpressStudioMcp.serverPath": {
           "type": "string",
-          "default": "",
-          "description": "Absolute path to dist/index.js of the wordpress-studio-mcp server"
+          "description": "Absolute path to dist/index.js of the wordpress-studio-mcp server. Leave empty to auto-detect on next VS Code restart."
         }
       }
     }
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.99.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.3.3",
+    "@vscode/vsce": "^3.0.0"
+  }
+}
+```
+
+> **No `"default": ""`** on `wordpressStudioMcp.serverPath`. Omitting the default means VS Code skips spawning `node ""` before activation runs. When the setting is absent/undefined, `contributes.mcpServers` does not attempt a spawn with an empty arg.
+
+---
+
+## ESM / CommonJS Boundary
+
+The existing MCP server (`wordpress-studio-mcp`) is an **ESM module** (`"type": "module"` in its `package.json`). VS Code extensions must compile to **CommonJS**. There is no conflict: VS Code spawns `node <serverPath>` as a **child process** over stdio — the extension never `require()`s or `import()`s the server directly. The boundary is the MCP stdio protocol, not module system interop.
+
+Extension `tsconfig.json`:
+```json
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "ES2022",
+    "rootDir": "src",
+    "outDir": "dist",
+    "strict": true,
+    "lib": ["ES2022"]
   }
 }
 ```
@@ -82,39 +117,67 @@ vscode-wordpress-studio-mcp/
 
 ## Activation Logic (`src/extension.ts`)
 
+### Activation event ordering note
+
+`onStartupFinished` fires after all extensions activate and the workbench is fully loaded. VS Code's MCP machinery may attempt to start the server earlier. On the very first launch (no path configured, no default), the spawn will be skipped (empty/absent setting). The notification and auto-detection run during `activate()` and configure the setting for the next VS Code window/restart. This is acceptable first-launch behaviour: the user sees the notification immediately, and on next open the server is running.
+
+### Flow
+
 ```
 activate()
   │
+  ├─ register command: wordpressStudioMcp.configurePath
+  │
   ├─ read wordpressStudioMcp.serverPath from user settings
   │
-  ├─ [set + file exists] → done, VS Code starts the MCP server automatically
+  ├─ [set + file exists] → validate Node.js ≥ 22.0.0 → done
   │
-  ├─ [not set OR file missing] → scan candidate paths for dist/index.js
+  ├─ [set + file missing] → warn:
+  │     "dist/index.js not found at <path> — run npm run build"
   │
-  │   Windows candidates:
-  │     C:\Work\Wordpress Studio MCP Plugin for Claude Code\dist\index.js
-  │     %USERPROFILE%\wordpress-studio-mcp\dist\index.js
-  │     %USERPROFILE%\Work\wordpress-studio-mcp\dist\index.js
-  │     %USERPROFILE%\Documents\wordpress-studio-mcp\dist\index.js
-  │
-  │   macOS/Linux candidates:
-  │     ~/wordpress-studio-mcp/dist/index.js
-  │     ~/Work/wordpress-studio-mcp/dist/index.js
-  │     ~/projects/wordpress-studio-mcp/dist/index.js
-  │     ~/dev/wordpress-studio-mcp/dist/index.js
-  │
-  ├─ [auto-detected] → silently write path to user settings → done
-  │
-  └─ [not found] → show one-time notification:
-        "WordPress Studio MCP: server not found — locate dist/index.js?"
-        [Browse…]  →  file picker (filter: index.js)
-                   →  validate file exists
-                   →  save to wordpressStudioMcp.serverPath (global user settings)
-        [Dismiss]  →  do nothing; command palette re-triggers anytime
+  └─ [not set] → scan candidate paths for dist/index.js
+        │
+        │  Windows candidates:
+        │    C:\Work\Wordpress Studio MCP Plugin for Claude Code\dist\index.js
+        │    %USERPROFILE%\wordpress-studio-mcp\dist\index.js
+        │    %USERPROFILE%\Work\wordpress-studio-mcp\dist\index.js
+        │    %USERPROFILE%\Documents\wordpress-studio-mcp\dist\index.js
+        │
+        │  macOS/Linux candidates:
+        │    ~/wordpress-studio-mcp/dist/index.js
+        │    ~/Work/wordpress-studio-mcp/dist/index.js
+        │    ~/projects/wordpress-studio-mcp/dist/index.js
+        │    ~/dev/wordpress-studio-mcp/dist/index.js
+        │
+        ├─ [auto-detected] →
+        │     show info: "WordPress Studio MCP: server found at <path> — saved to settings."
+        │     [Change]  → triggers configurePath command
+        │     write path to global user settings
+        │     (server available on next VS Code window open — VS Code re-reads
+        │      ${config:...} at spawn time, not live; restart required after first configure)
+        │
+        └─ [not found] → check context.globalState "promptShown" flag
+              │
+              ├─ [already shown] → silent (user dismissed before; command palette available)
+              │
+              └─ [not shown] → set promptShown = true → show notification:
+                    "WordPress Studio MCP: server not found — locate dist/index.js?"
+                    [Browse…]  → file picker (filters: { JavaScript: ['js'] })
+                               → validate: path.basename(selected) === 'index.js' && fs.existsSync
+                               → save to global user settings
+                    [Dismiss]  → silent
 ```
 
-**Command:** `WordPress Studio MCP: Configure Server Path`
-Same folder-picker flow. Registers on `activate()`, available from command palette at any time.
+### Node.js version check
+
+After confirming the path exists, run `node --version` and parse the output. If the version is below `v22.0.0`, show a warning:
+
+```
+"WordPress Studio MCP requires Node.js ≥ 22.0.0. Found <version>.
+The MCP server may fail. Download Node.js 22+ from nodejs.org."
+```
+
+This uses `child_process.execSync('node --version')` inside a try/catch.
 
 ---
 
@@ -122,46 +185,52 @@ Same folder-picker flow. Registers on `activate()`, available from command palet
 
 | Situation | Behaviour |
 |---|---|
+| First launch, path not set | Skip spawn (no default); notification fires during activation to configure |
 | Path set, `dist/index.js` missing | Warning: "dist/index.js not found — run `npm run build`" |
+| Node.js < 22.0.0 | Warning: "Node.js ≥ 22.0.0 required" with link to nodejs.org |
 | Node.js not on PATH | VS Code's MCP error surface handles this natively |
 | MCP server crashes on start | VS Code shows MCP server error in Output panel |
-| User clicks Dismiss on first-run prompt | Silent; command palette available to configure later |
+| User dismisses first-run prompt | Silent; `globalState.promptShown = true`; command palette available |
+| File picker: wrong file selected | Re-validate: warn if `basename !== 'index.js'`, ask to re-select |
+
+---
+
+## `.vscodeignore`
+
+```
+src/
+tsconfig.json
+**/*.map
+node_modules/
+.vscode/
+*.vsix
+```
 
 ---
 
 ## Build & Distribution
 
-- TypeScript compiled with `tsc` (CommonJS output, `"module": "commonjs"` for VS Code extensions)
+- TypeScript compiled with `tsc` (CommonJS, targeting the VS Code extension host)
 - Packaged with `vsce package` → produces `vscode-wordpress-studio-mcp-0.1.0.vsix`
 - Install locally: `code --install-extension vscode-wordpress-studio-mcp-0.1.0.vsix`
-- Publish: `vsce publish` (requires Marketplace PAT)
-
-**`devDependencies`:**
-```json
-{
-  "@types/vscode": "^1.99.0",
-  "@types/node": "^22.0.0",
-  "typescript": "^5.3.3",
-  "@vscode/vsce": "^3.0.0"
-}
-```
+- Publish: `vsce publish` (requires Marketplace PAT under `movinginfo` publisher)
 
 ---
 
 ## Data Flow (End-to-End)
 
 ```
-User opens VS Code
-  → Extension activates (onStartupFinished)
-  → Auto-detects / confirms dist/index.js path
-  → VS Code reads contributes.mcpServers
+User installs extension (.vsix or Marketplace)
+  → VS Code activates extension (onStartupFinished)
+  → Auto-detects or prompts for dist/index.js path
+  → Writes wordpressStudioMcp.serverPath to user settings
+  → On next open: VS Code reads contributes.mcpServers
   → Resolves ${config:wordpressStudioMcp.serverPath}
-  → Spawns: node <path>/dist/index.js  (stdio)
-  → MCP server starts, registers 61 tools
-  → Copilot Chat sees all tools
-  → User asks: "@workspace list my Studio sites"
-  → Copilot calls studio_registry tool
-  → Result returned inline in chat
+  → Spawns: node <path>/dist/index.js  (stdio, child process)
+  → MCP server starts (ESM, Node 22+), registers all tools
+  → Copilot Chat sees all tools automatically
+  → User: "@workspace list my Studio sites"
+  → Copilot calls studio_registry tool → result inline in chat
 ```
 
 ---
