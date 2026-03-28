@@ -227,9 +227,10 @@ Type coercion before passing to MCP:
 
 ```typescript
 const CATEGORY_MAP: Record<string, string> = {
-  // Longer prefixes MUST come first — sorted by descending length at lookup time
+  // Object key order does not matter — getCategory() sorts by length at lookup time
   "studio_blueprint_":  "BLUEPRINTS",
-  "studio_site_":       "DOMAIN & HTTPS",   // set_domain, remove_domain, use_mkcert
+  "studio_site_health": "SITE REGISTRY & STATUS",  // exact name — wins over studio_site_
+  "studio_site_":       "DOMAIN & HTTPS",           // set_domain, remove_domain, use_mkcert
   "studio_domain_":     "DOMAIN & HTTPS",
   "studio_xdebug_":     "XDEBUG",
   "wpcli_db_":          "ADMINISTRATION",   // wpcli_db_backup
@@ -243,7 +244,7 @@ const CATEGORY_MAP: Record<string, string> = {
   "wp_mcp_":            "ABILITIES",
   "wp_abilities_":      "ABILITIES",
   "wpcom_":             "WORDPRESS.COM",
-  "studio_":            "SITE REGISTRY & STATUS",  // catch-all for studio_ after longer prefixes
+  "studio_":            "SITE REGISTRY & STATUS",
   "fs_":                "FILESYSTEM",
   "db_":                "DATABASE",
   "wpcli_":             "WP-CLI",
@@ -251,12 +252,11 @@ const CATEGORY_MAP: Record<string, string> = {
   "marketing_":         "MARKETING",
 };
 
-// Lookup: sort keys by length descending, return first match
+// Lookup: sort keys by descending length so longer prefixes always win
 function getCategory(toolName: string): string {
   const keys = Object.keys(CATEGORY_MAP).sort((a, b) => b.length - a.length);
-  return keys.find(k => toolName.startsWith(k))
-    ? CATEGORY_MAP[keys.find(k => toolName.startsWith(k))!]
-    : "OTHER";
+  const match = keys.find(k => toolName.startsWith(k));
+  return match ? CATEGORY_MAP[match] : "OTHER";
 }
 ```
 
@@ -348,7 +348,7 @@ Some tools (`wpcli_search_replace`, `wpcli_update_all`, `studio_blueprint_apply`
 | Missing required arg | MCP server returns error text → print it → exit 1 |
 | `dist/index.js` missing | `Error: server not built — run npm run build` → exit 1 |
 | MCP server crashes on start | Stderr from child process printed to stderr → exit 1 |
-| MCP callTool returns `isError: true` | Print `result.content[0].text` to stderr → exit 1 |
+| MCP callTool returns `isError: true` | Apply same content guard (see Output section), print to stderr → exit 1 |
 | `Ctrl+C` during call | SIGINT handler → kill child process → exit 130 (Unix convention: 128 + 2) |
 
 ---
