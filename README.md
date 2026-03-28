@@ -16,6 +16,7 @@
 - [The Complete WordPress AI Stack](#the-complete-wordpress-ai-stack)
 - [Install — Claude Desktop](#install--claude-desktop)
 - [Install — Claude Code IDE](#install--claude-code-ide)
+- [Install — VS Code + GitHub Copilot](#install--vs-code--github-copilot)
 - [wordpress-studio-mcp Tools (58)](#wordpress-studio-mcp--58-tools--this-project)
 - [wordpress-studio Tools (13)](#wordpress-studio--13-tools--automattic-wp-studio1777)
 - [WP-CLI Reference](#wp-cli-reference)
@@ -218,6 +219,80 @@ Add inside `mcpServers`:
   }
 }
 ```
+
+---
+
+## Install — VS Code + GitHub Copilot
+
+Requires **VS Code 1.99+** and the **GitHub Copilot** extension. Three ways to register the server — pick whichever suits you.
+
+### Step 1 — Clone and build (same as above)
+
+```powershell
+git clone https://github.com/movinginfo/wordpress-studio-mcp.git "C:\Work\wordpress-studio-mcp"
+cd "C:\Work\wordpress-studio-mcp"
+npm install
+npm run build
+```
+
+### Step 2 — Register the MCP server
+
+**Option A — Command Palette (easiest)**
+
+`Ctrl+Shift+P` → **MCP: Add Server** → choose **stdio** → enter:
+
+| Field | Value |
+|---|---|
+| Command | `node` |
+| Arguments | `C:\Work\wordpress-studio-mcp\dist\index.js` |
+| Name | `wordpress-studio` |
+
+VS Code writes the entry to your user `settings.json` automatically.
+
+---
+
+**Option B — `.vscode/mcp.json` (workspace-level)**
+
+Create `.vscode/mcp.json` in any project folder:
+
+```json
+{
+  "servers": {
+    "wordpress-studio": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["C:\\Work\\wordpress-studio-mcp\\dist\\index.js"]
+    }
+  }
+}
+```
+
+Only active in that workspace. Can be committed to source control so teammates get it automatically.
+
+---
+
+**Option C — `settings.json` (global, all workspaces)**
+
+`Ctrl+Shift+P` → **Open User Settings (JSON)** → add:
+
+```json
+"mcp": {
+  "servers": {
+    "wordpress-studio": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["C:\\Work\\wordpress-studio-mcp\\dist\\index.js"]
+    }
+  }
+}
+```
+
+### Step 3 — Verify
+
+1. Open Copilot Chat — `Ctrl+Alt+I`
+2. Switch to **Agent mode** (dropdown next to the chat input)
+3. Click the **tools icon** — all `wordpress-studio-mcp` tools should be listed
+4. Ask: `list my WordPress Studio sites`
 
 ---
 
