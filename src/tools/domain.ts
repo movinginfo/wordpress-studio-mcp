@@ -32,6 +32,7 @@ import {
   findSite,
   readCliConfig,
   STUDIO_SITES_ROOT,
+  STUDIO_HOME,
   CLI_CONFIG_PATH,
 } from "../studio-config.js";
 
@@ -171,6 +172,25 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+type SpawnResult = { status: number | null; stdout: string; stderr: string; error?: Error };
+
+/**
+ * Run mkcert reliably on Windows.
+ * On Windows the MCP server inherits a limited PATH so `mkcert` may not be
+ * found directly — we shell out via `cmd /c mkcert ...` as a fallback.
+ */
+function runMkcert(args: string[], timeoutMs = 30_000): SpawnResult {
+  const opts = { encoding: "utf-8" as const, timeout: timeoutMs, windowsHide: true };
+  if (process.platform === "win32") {
+    const direct = spawnSync("mkcert", args, opts);
+    if (!direct.error) return { status: direct.status, stdout: String(direct.stdout ?? ""), stderr: String(direct.stderr ?? ""), error: direct.error };
+    const via = spawnSync("cmd", ["/c", "mkcert", ...args], opts);
+    return { status: via.status, stdout: String(via.stdout ?? ""), stderr: String(via.stderr ?? ""), error: via.error };
+  }
+  const r = spawnSync("mkcert", args, opts);
+  return { status: r.status, stdout: String(r.stdout ?? ""), stderr: String(r.stderr ?? ""), error: r.error };
+}
+
 // ─── Tool registration ────────────────────────────────────────────────────────
 
 export function registerDomainTools(server: McpServer): void {
@@ -204,8 +224,16 @@ export function registerDomainTools(server: McpServer): void {
 
       const protocol  = useHttps ? "https" : "http";
       const newUrl    = `${protocol}://${domain}`;
-      const oldUrl    = `http://localhost:${siteData.port}`;
       const sitePath  = siteData.path;
+
+      // Detect current URL — may be a previous custom domain, not localhost
+      const cfgNow    = readCliConfig();
+      const siteCfgNow = cfgNow?.sites.find(s => s.id === siteData.id);
+      const curDomainNow = siteCfgNow?.customDomain;
+      const curHttpsNow  = siteCfgNow?.enableHttps ?? false;
+      const oldUrl = curDomainNow
+        ? `${curHttpsNow ? "https" : "http"}://${curDomainNow}`
+        : `http://localhost:${siteData.port}`;
 
       const plan = [
         `Domain mapping plan for: ${siteData.name}`,
@@ -401,6 +429,190 @@ export function registerDomainTools(server: McpServer): void {
 
       results.push("");
       results.push(`✅ Domain '${oldDomain}' removed. Restart the site to access it at ${newUrl}`);
+      return { content: [{ type: "text" as const, text: results.join("\n") }] };
+    }
+  );
+
+  // ── studio_site_use_mkcert ────────────────────────────────────────────────
+
+  server.tool(
+    "studio_site_use_mkcert",
+    "Generate a browser-trusted HTTPS certificate for any domain name (including real TLDs like " +
+    "i-help.us, mysite.com) using mkcert, bypassing Studio CA Name Constraints that prevent " +
+    "real-TLD HTTPS. Writes cert/key directly to ~/.studio/certificates/domains/ so Studio's " +
+    "built-in proxy uses them. Steps: check mkcert installed → mkcert -install → generate cert → " +
+    "patch cli.json (enableHttps:true, customDomain) → add to hosts file → DB search-replace → " +
+    "set wp-config WP_HOME/WP_SITEURL to https://domain. " +
+    "Requires mkcert to be installed: https://github.com/FiloSottile/mkcert",
+    {
+      site:      z.string().describe("Site name or absolute site path"),
+      domain:    z.string().describe(
+        "Domain to use with HTTPS, e.g. 'i-help.us'. Do NOT include https:// or trailing slash."
+      ),
+      confirmed: z.boolean().describe("Must be true to apply changes. Set to false to preview only."),
+    },
+    async ({ site, domain, confirmed }) => {
+      const siteData = findSite(site);
+      if (!siteData) {
+        return { content: [{ type: "text" as const, text: `Site '${site}' not found in Studio registry.` }], isError: true };
+      }
+
+      const newUrl   = `https://${domain}`;
+      const sitePath = siteData.path;
+      const certDir  = path.join(STUDIO_HOME, "certificates", "domains");
+      const certFile = path.join(certDir, `${domain}.crt`);
+      const keyFile  = path.join(certDir, `${domain}.key`);
+
+      // Detect the current URL stored in the DB — could be localhost or a previous custom domain
+      const cfg2      = readCliConfig();
+      const siteCfg   = cfg2?.sites.find(s => s.id === siteData.id);
+      const curDomain = siteCfg?.customDomain;
+      const curHttps  = siteCfg?.enableHttps ?? false;
+      const oldUrl    = curDomain
+        ? `${curHttps ? "https" : "http"}://${curDomain}`
+        : `http://localhost:${siteData.port}`;
+
+      const plan = [
+        `mkcert HTTPS plan for: ${siteData.name}`,
+        "─".repeat(50),
+        `  Domain:    ${domain}`,
+        `  New URL:   ${newUrl}`,
+        `  Old URL:   ${oldUrl}  (current DB URLs — will be replaced)`,
+        `  Cert file: ${certFile}`,
+        `  Key file:  ${keyFile}`,
+        "",
+        "Steps that will run:",
+        "  1. Check mkcert is installed",
+        "  2. mkcert -install  (trust mkcert CA in system/browser stores)",
+        `  3. Generate cert: mkcert -cert-file ... -key-file ... ${domain}`,
+        `  4. Patch cli.json: customDomain=${domain}, enableHttps=true`,
+        `  5. Hosts file → add 127.0.0.1 ${domain}`,
+        `  6. DB search-replace '${oldUrl}' → '${newUrl}'`,
+        `  7. wp-config.php → WP_HOME and WP_SITEURL = '${newUrl}'`,
+        "",
+        confirmed ? "Applying..." : "⚠️  DRY RUN — set confirmed: true to apply",
+      ];
+
+      if (!confirmed) {
+        return { content: [{ type: "text" as const, text: plan.join("\n") }] };
+      }
+
+      const results: string[] = [...plan, ""];
+
+      // ── Step 1: Check mkcert installed ────────────────────────────────────
+      results.push("── Step 1: Check mkcert ──");
+      const versionCheck = runMkcert(["-version"], 10_000);
+      if (versionCheck.status !== 0 && versionCheck.error) {
+        results.push("  ❌ mkcert not found on PATH.");
+        results.push("     Install it first: https://github.com/FiloSottile/mkcert");
+        results.push("     Windows (Chocolatey): choco install mkcert");
+        results.push("     Windows (Winget):     winget install FiloSottile.mkcert");
+        return { content: [{ type: "text" as const, text: results.join("\n") }], isError: true };
+      }
+      const mkcertVersion = (versionCheck.stdout ?? "").trim() || (versionCheck.stderr ?? "").trim();
+      results.push(`  ✅ mkcert found: ${mkcertVersion}`);
+
+      // ── Step 2: mkcert -install ───────────────────────────────────────────
+      results.push("\n── Step 2: mkcert -install ──");
+      const installResult = runMkcert(["-install"]);
+      if (installResult.status === 0) {
+        results.push("  ✅ mkcert CA installed in system/browser trust stores");
+      } else {
+        const errMsg = (installResult.stderr ?? "").trim() || (installResult.stdout ?? "").trim();
+        results.push(`  ⚠️  mkcert -install returned non-zero (may need elevation): ${errMsg}`);
+        results.push("     If Chrome/Firefox still show ERR_CERT_AUTHORITY_INVALID, run:");
+        results.push("     mkcert -install   (in an elevated/admin terminal)");
+      }
+
+      // ── Step 3: Generate certificate ─────────────────────────────────────
+      results.push("\n── Step 3: Generate certificate ──");
+      try {
+        fs.mkdirSync(certDir, { recursive: true });
+      } catch (err) {
+        results.push(`  ⚠️  Could not create cert directory: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      const certResult = runMkcert(["-cert-file", certFile, "-key-file", keyFile, domain]);
+      if (certResult.status === 0 || fs.existsSync(certFile)) {
+        results.push(`  ✅ Certificate generated:`);
+        results.push(`     cert: ${certFile}`);
+        results.push(`     key:  ${keyFile}`);
+      } else {
+        const errMsg = (certResult.stderr ?? "").trim() || (certResult.stdout ?? "").trim();
+        results.push(`  ❌ mkcert cert generation failed: ${errMsg}`);
+        return { content: [{ type: "text" as const, text: results.join("\n") }], isError: true };
+      }
+
+      // ── Step 4: Patch cli.json ────────────────────────────────────────────
+      results.push("\n── Step 4: Patch cli.json ──");
+      try {
+        const raw  = fs.readFileSync(CLI_CONFIG_PATH, "utf-8");
+        const cfg  = JSON.parse(raw);
+        const siteEntry = cfg.sites?.find((s: { id: string }) => s.id === siteData.id);
+        if (siteEntry) {
+          siteEntry.customDomain = domain;
+          siteEntry.enableHttps  = true;
+          fs.writeFileSync(CLI_CONFIG_PATH, JSON.stringify(cfg, null, 2), "utf-8");
+          results.push(`  ✅ cli.json: customDomain=${domain}, enableHttps=true`);
+        } else {
+          results.push("  ⚠️  Site not found in cli.json — patch skipped");
+        }
+      } catch (err) {
+        results.push(`  ⚠️  cli.json patch failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+
+      // ── Step 5: Hosts file ────────────────────────────────────────────────
+      results.push("\n── Step 5: Hosts file ──");
+      const hostsResult = addDomainToHosts(domain, siteData.port);
+      results.push(hostsResult.ok ? `  ✅ ${hostsResult.message}` : `  ⚠️  ${hostsResult.message}`);
+
+      // ── Step 6: DB search-replace ─────────────────────────────────────────
+      results.push("\n── Step 6: Database URL search-replace ──");
+      const srResult = studioWp(sitePath, [
+        "search-replace", oldUrl, newUrl,
+        "--all-tables", "--report-changed-only",
+      ]);
+      if (srResult.ok) {
+        results.push(`  ✅ ${srResult.stdout || `Replaced '${oldUrl}' → '${newUrl}'`}`);
+      } else {
+        results.push(`  ⚠️  search-replace failed (is the site running?): ${srResult.stderr}`);
+        results.push(`       Run manually: wp search-replace '${oldUrl}' '${newUrl}' --all-tables`);
+      }
+
+      // ── Step 7: wp-config.php constants ──────────────────────────────────
+      results.push("\n── Step 7: wp-config.php constants ──");
+      const wpConfigPath = path.join(sitePath, "wp-config.php");
+      if (fs.existsSync(wpConfigPath)) {
+        try {
+          fs.copyFileSync(wpConfigPath, wpConfigPath + ".bak");
+          let cfg2 = fs.readFileSync(wpConfigPath, "utf-8");
+          const setConst = (name: string, val: string) => {
+            const re = new RegExp(`define\\s*\\(\\s*['"]${name}['"]\\s*,[^)]+\\)\\s*;`, "m");
+            const line = `define( '${name}', '${val}' );`;
+            cfg2 = re.test(cfg2) ? cfg2.replace(re, line) : cfg2.replace("/* That's all, stop editing!", `${line}\n/* That's all, stop editing!`);
+          };
+          setConst("WP_HOME",    newUrl);
+          setConst("WP_SITEURL", newUrl);
+          fs.writeFileSync(wpConfigPath, cfg2, "utf-8");
+          results.push(`  ✅ WP_HOME and WP_SITEURL set to '${newUrl}'`);
+        } catch (err) {
+          results.push(`  ⚠️  wp-config.php update failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      } else {
+        results.push(`  ⚠️  wp-config.php not found at ${wpConfigPath}`);
+      }
+
+      // ── Summary ───────────────────────────────────────────────────────────
+      results.push("\n" + "─".repeat(50));
+      results.push("✅  mkcert HTTPS setup complete.");
+      results.push("");
+      results.push("Next steps:");
+      results.push(`  1. Restart the site in Studio (stop → start)`);
+      results.push(`  2. Open ${newUrl} in Chrome/Firefox — should show a valid padlock`);
+      results.push(`  3. Log in at ${newUrl}/wp-admin`);
+      results.push("");
+      results.push("Note: If the browser still shows ERR_CERT_AUTHORITY_INVALID:");
+      results.push("  • Run 'mkcert -install' in an elevated (Admin) terminal and restart the browser.");
+
       return { content: [{ type: "text" as const, text: results.join("\n") }] };
     }
   );

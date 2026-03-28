@@ -27,11 +27,13 @@ import { registerSiteRegistryTools } from "./tools/site-registry.js";
 import { registerRestApiTools } from "./tools/rest-api.js";
 import { registerBlueprintTools } from "./tools/blueprints.js";
 import { registerVipDesignTools } from "./tools/vip-design.js";
+import { registerAdminTools } from "./tools/admin.js";
+import { registerDomainTools } from "./tools/domain.js";
 import { STUDIO_HOME, STUDIO_SITES_ROOT } from "./studio-config.js";
 // ─── MCP Server ───────────────────────────────────────────────────────────────
 const server = new McpServer({
     name: "wordpress-studio-mcp-extension",
-    version: "0.1.7",
+    version: "0.1.10",
 });
 // ─── Register all tool groups ─────────────────────────────────────────────────
 registerSiteRegistryTools(server); // studio_registry, studio_auth_status, studio_daemon_status …
@@ -41,12 +43,14 @@ registerWpCliTools(server); // wpcli_plugin_list, wpcli_run, wpcli_search_replac
 registerRestApiTools(server); // wpcom_api_get, wp_rest_get, wpcom_mcp_call, wpcom_theme_context …
 registerBlueprintTools(server); // studio_blueprint_list, studio_blueprint_generate, studio_blueprint_apply
 registerVipDesignTools(server); // vip_design_tokens, vip_design_theme_json
+registerAdminTools(server); // wp_config_set, wp_security_audit, wp_php_info, wpcli_db_backup, wpcli_cron_list, wpcli_update_all
+registerDomainTools(server); // studio_site_set_domain, studio_site_remove_domain, studio_domain_list, studio_site_use_mkcert
 // ─── Startup banner (stderr — does not pollute the MCP stdio stream) ──────────
 const PROJECT_ROOT = "c:\\Work\\Wordpress Studio MCP Plugin for Claude Code";
 const pad = (s, n) => s.slice(0, n).padEnd(n);
 process.stderr.write("\n" +
     "┌─────────────────────────────────────────────────────────────┐\n" +
-    "│  WordPress Studio MCP Extension  v0.1.7                     │\n" +
+    "│  WordPress Studio MCP Extension  v0.1.10                    │\n" +
     `│  Project:     ${pad(PROJECT_ROOT, 45)}│\n` +
     `│  Studio home: ${pad(STUDIO_HOME, 45)}│\n` +
     `│  Sites root:  ${pad(STUDIO_SITES_ROOT, 45)}│\n` +
