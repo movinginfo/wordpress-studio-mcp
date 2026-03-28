@@ -406,62 +406,71 @@ Then:
 
 **The problem — what happens when you click "Enable HTTPS" in Studio UI:**
 
-Studio's built-in certificate authority (CA) has an X.509 **Name Constraints** extension that restricts it to `.local` domains only. When you enable HTTPS in Studio Settings for a site like `i-help.us`, Studio automatically changes the Site URL from `https://i-help.us` to `https://i-help.local`:
+Studio's built-in certificate authority (CA) has an X.509 **Name Constraints** extension that restricts it to `.local` domains only. When you enable HTTPS in Studio Settings for a site like `i-help.us`, Studio automatically changes the Site URL from `https://i-help.us` to `https://i-helpus.wp.local`:
 
 ```
-Before: Site URL → i-help.us   (http)
-After:  Site URL → i-help.local (https)   ← Studio renamed it automatically
+Before: Site URL → i-help.us        (http)
+After:  Site URL → i-helpus.wp.local (https)   ← Studio renamed it automatically
 ```
 
-WordPress Address (URL) and Site Address (URL) in `wp-admin → Settings → General` also change to `https://i-help.local`. Opening the original `https://i-help.us` in Chrome shows `ERR_CERT_INVALID` because Studio's CA cert is technically invalid for real TLDs — Chrome rejects it with `CERT_TRUST_HAS_NOT_PERMITTED_NAME_CONSTRAINT`.
+WordPress Address and Site Address in `wp-admin → Settings → General` also change. Opening `https://i-help.us` in Chrome shows `ERR_CERT_INVALID` — Chrome rejects the cert with `CERT_TRUST_HAS_NOT_PERMITTED_NAME_CONSTRAINT`.
 
 **This means: you cannot use Studio's built-in HTTPS toggle for real domain names.**
 
-**Solution — use [mkcert](https://github.com/FiloSottile/mkcert):**
+**Solution — [mkcert](https://github.com/FiloSottile/mkcert):**
 
-mkcert creates a separate local CA **without Name Constraints** and installs it into Windows/Chrome/Firefox trust stores. The generated cert is browser-trusted for any domain name — `i-help.us`, `mysite.com`, anything.
+mkcert creates a local CA **without Name Constraints** and installs it into Windows/Chrome/Firefox trust stores. Generated certs are browser-trusted for any domain name.
 
-> **Do not enable HTTPS in Studio UI for real-domain sites.** Use `studio_site_use_mkcert` instead — it handles everything automatically.
+> **Do not enable HTTPS in Studio UI for real-domain sites.** Use `studio_site_use_mkcert` instead.
 
-**Step 1 — Install mkcert (one-time, run as Administrator):**
+**Step 1 — Install mkcert** (no winget/choco needed — single .exe file):
+
+*Windows — open PowerShell as Administrator:*
 ```powershell
-# Winget
-winget install FiloSottile.mkcert
-
-# Chocolatey
-choco install mkcert
-
-# Or download .exe from https://github.com/FiloSottile/mkcert/releases
+# Download mkcert.exe directly (no package manager needed)
+Invoke-WebRequest -Uri "https://github.com/FiloSottile/mkcert/releases/download/v1.4.4/mkcert-v1.4.4-windows-amd64.exe" -OutFile "C:\Windows\System32\mkcert.exe"
+mkcert --version
 ```
 
-**Step 2 — Run the tool:**
+Or use the included automation script (handles download + install automatically):
+```
+https-certificates\setup-https.bat   ← double-click, enter domain, click Yes on UAC
+```
+
+*macOS — in Terminal:*
+```bash
+brew install mkcert nss
+```
+Or use the included script: `./https-certificates/setup-https-macos.sh i-help.us`
+
+**Step 2 — Run the MCP tool:**
 ```
 studio_site_use_mkcert  site:i-help.us  domain:i-help.us  confirmed:true
 ```
 
-**What it does automatically:**
+**What the tool does automatically:**
 | Step | Action |
 |------|--------|
 | 1 | Checks `mkcert -version` — fails fast with install instructions if missing |
 | 2 | `mkcert -install` — installs mkcert CA into Windows/Chrome/Firefox trust stores |
-| 3 | Generates cert: `mkcert -cert-file ~/.studio/certificates/domains/i-help.us.crt -key-file ... i-help.us` |
+| 3 | Generates cert → `~/.studio/certificates/domains/i-help.us.crt` + `.key` |
 | 4 | Patches `~/.studio/cli.json`: `customDomain=i-help.us`, `enableHttps=true` |
 | 5 | Adds `127.0.0.1 i-help.us` to the OS hosts file |
-| 6 | DB search-replace: current URL (e.g. `https://i-help.local`) → `https://i-help.us` |
+| 6 | DB search-replace: auto-detects current URL (handles `i-helpus.wp.local` → `https://i-help.us`) |
 | 7 | `wp-config.php`: `WP_HOME` and `WP_SITEURL` = `https://i-help.us` |
 
-> Step 6 automatically detects what the current domain is in `cli.json` (whether it's `localhost:PORT` or a previous `.local` domain that Studio set) — so it always replaces the right URLs regardless of what state the site was in before.
-
-**Step 3 — Restart the site in Studio** (stop → start) → open `https://i-help.us` → green padlock ✅
+**Step 3 — Restart site in Studio** → open `https://i-help.us` → green padlock ✅
 
 **Troubleshooting:**
 
 | Symptom | Fix |
 |---------|-----|
-| `ERR_CERT_AUTHORITY_INVALID` after tool runs | `mkcert -install` needs elevation — run in **Admin** PowerShell, then restart Chrome |
-| `mkcert not found` error | Install mkcert first (Step 1 above) |
-| DB search-replace shows 0 replacements | Site may not be running — start it in Studio first, then re-run the tool |
-| Site URL still shows `.local` in Studio UI | Normal — Studio UI shows `cli.json` customDomain; the mkcert tool sets it to the real domain |
+| `ERR_CERT_AUTHORITY_INVALID` | Run `mkcert -install` in Admin terminal, restart Chrome |
+| `mkcert not found` | Install mkcert first — see `https-certificates/HTTPS-SETUP.md` |
+| DB search-replace 0 rows | Start the site in Studio first, then re-run the tool |
+| Site URL shows `.wp.local` in Studio UI | Normal after creation — the tool fixes it to the real domain |
+
+**Full manual and automation scripts:** [`https-certificates/`](https-certificates/)
 
 #### Administration & Security
 

@@ -61,6 +61,13 @@ export declare function findSite(nameOrPathOrId: string): SiteData | undefined;
  * the DB at: {sitePath}/wp-content/database/.ht.sqlite
  */
 export declare function getSqlitePath(sitePath: string): string;
-/** Safety guard — ensure the given file path is within STUDIO_SITES_ROOT */
+/**
+ * Safety guard — ensure the given file path is within an allowed root.
+ *
+ * Checks against STUDIO_SITES_ROOT first, then falls back to checking
+ * whether the path is inside any registered site path from cli.json.
+ * This handles installations where sites live outside the default ~/Studio/sites
+ * directory (e.g. directly in ~/Studio/).
+ */
 export declare function assertUnderSitesRoot(filePath: string): void;
 //# sourceMappingURL=studio-config.d.ts.map

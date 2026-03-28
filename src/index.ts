@@ -37,7 +37,7 @@ import { STUDIO_HOME, STUDIO_SITES_ROOT } from "./studio-config.js";
 
 const server = new McpServer({
   name:    "wordpress-studio-mcp-extension",
-  version: "0.1.10",
+  version: "0.1.11",
 });
 
 // ─── Register all tool groups ─────────────────────────────────────────────────
@@ -60,7 +60,7 @@ const pad = (s: string, n: number) => s.slice(0, n).padEnd(n);
 process.stderr.write(
   "\n" +
   "┌─────────────────────────────────────────────────────────────┐\n" +
-  "│  WordPress Studio MCP Extension  v0.1.10                    │\n" +
+  "│  WordPress Studio MCP Extension  v0.1.11                    │\n" +
   `│  Project:     ${pad(PROJECT_ROOT, 45)}│\n` +
   `│  Studio home: ${pad(STUDIO_HOME, 45)}│\n` +
   `│  Sites root:  ${pad(STUDIO_SITES_ROOT, 45)}│\n` +

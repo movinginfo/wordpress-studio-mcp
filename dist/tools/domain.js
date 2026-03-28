@@ -420,15 +420,20 @@ export function registerDomainTools(server) {
         // ── Step 1: Check mkcert installed ────────────────────────────────────
         results.push("── Step 1: Check mkcert ──");
         const versionCheck = runMkcert(["-version"], 10_000);
-        if (versionCheck.status !== 0 && versionCheck.error) {
+        const versionOut = versionCheck.stdout.trim() || versionCheck.stderr.trim();
+        const notFound = versionCheck.error != null
+            || versionCheck.status !== 0
+            || versionOut.toLowerCase().includes("not recognized")
+            || versionOut.toLowerCase().includes("not found")
+            || versionOut.toLowerCase().includes("no such file");
+        if (notFound) {
             results.push("  ❌ mkcert not found on PATH.");
             results.push("     Install it first: https://github.com/FiloSottile/mkcert");
             results.push("     Windows (Chocolatey): choco install mkcert");
             results.push("     Windows (Winget):     winget install FiloSottile.mkcert");
             return { content: [{ type: "text", text: results.join("\n") }], isError: true };
         }
-        const mkcertVersion = (versionCheck.stdout ?? "").trim() || (versionCheck.stderr ?? "").trim();
-        results.push(`  ✅ mkcert found: ${mkcertVersion}`);
+        results.push(`  ✅ mkcert found: ${versionOut}`);
         // ── Step 2: mkcert -install ───────────────────────────────────────────
         results.push("\n── Step 2: mkcert -install ──");
         const installResult = runMkcert(["-install"]);

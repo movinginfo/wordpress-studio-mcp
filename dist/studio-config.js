@@ -77,12 +77,34 @@ export function findSite(nameOrPathOrId) {
 export function getSqlitePath(sitePath) {
     return path.join(sitePath, "wp-content", "database", ".ht.sqlite");
 }
-/** Safety guard — ensure the given file path is within STUDIO_SITES_ROOT */
+/**
+ * Safety guard — ensure the given file path is within an allowed root.
+ *
+ * Checks against STUDIO_SITES_ROOT first, then falls back to checking
+ * whether the path is inside any registered site path from cli.json.
+ * This handles installations where sites live outside the default ~/Studio/sites
+ * directory (e.g. directly in ~/Studio/).
+ */
 export function assertUnderSitesRoot(filePath) {
     const real = path.resolve(filePath);
     const root = path.resolve(STUDIO_SITES_ROOT);
-    if (!real.startsWith(root + path.sep) && real !== root) {
-        throw new Error(`Access denied: path "${filePath}" is outside STUDIO_SITES_ROOT "${root}"`);
+    // Primary check: under configured STUDIO_SITES_ROOT
+    if (real.startsWith(root + path.sep) || real === root)
+        return;
+    // Fallback: under any registered site path in cli.json
+    try {
+        const cfg = readCliConfig();
+        if (cfg) {
+            for (const site of cfg.sites) {
+                const siteRoot = path.resolve(site.path);
+                if (real.startsWith(siteRoot + path.sep) || real === siteRoot)
+                    return;
+            }
+        }
     }
+    catch {
+        // If cli.json is unreadable, fall through to the error
+    }
+    throw new Error(`Access denied: path "${filePath}" is outside STUDIO_SITES_ROOT "${root}" and not under any registered site path`);
 }
 //# sourceMappingURL=studio-config.js.map
