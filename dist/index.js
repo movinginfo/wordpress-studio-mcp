@@ -36,7 +36,7 @@ import { STUDIO_HOME, STUDIO_SITES_ROOT } from "./studio-config.js";
 // ─── MCP Server ───────────────────────────────────────────────────────────────
 const server = new McpServer({
     name: "wordpress-studio-mcp-extension",
-    version: "0.1.14",
+    version: "0.1.15",
 });
 // ─── Register all tool groups ─────────────────────────────────────────────────
 registerSiteRegistryTools(server); // studio_registry, studio_auth_status, studio_daemon_status …
@@ -56,7 +56,7 @@ const PROJECT_ROOT = "c:\\Work\\Wordpress Studio MCP Plugin for Claude Code";
 const pad = (s, n) => s.slice(0, n).padEnd(n);
 process.stderr.write("\n" +
     "┌─────────────────────────────────────────────────────────────┐\n" +
-    "│  WordPress Studio MCP Extension  v0.1.14                    │\n" +
+    "│  WordPress Studio MCP Extension  v0.1.15                    │\n" +
     `│  Project:     ${pad(PROJECT_ROOT, 45)}│\n` +
     `│  Studio home: ${pad(STUDIO_HOME, 45)}│\n` +
     `│  Sites root:  ${pad(STUDIO_SITES_ROOT, 45)}│\n` +
