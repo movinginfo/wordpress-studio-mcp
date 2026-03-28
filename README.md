@@ -17,6 +17,7 @@
 - [Install — Claude Desktop](#install--claude-desktop)
 - [Install — Claude Code IDE](#install--claude-code-ide)
 - [Install — VS Code + GitHub Copilot](#install--vs-code--github-copilot)
+- [wpstudio CLI — Terminal Usage](#wpstudio-cli--terminal-usage)
 - [wordpress-studio-mcp Tools (58)](#wordpress-studio-mcp--58-tools--this-project)
 - [wordpress-studio Tools (13)](#wordpress-studio--13-tools--automattic-wp-studio1777)
 - [WP-CLI Reference](#wp-cli-reference)
@@ -293,6 +294,70 @@ Only active in that workspace. Can be committed to source control so teammates g
 2. Switch to **Agent mode** (dropdown next to the chat input)
 3. Click the **tools icon** — all `wordpress-studio-mcp` tools should be listed
 4. Ask: `list my WordPress Studio sites`
+
+---
+
+## wpstudio CLI — Terminal Usage
+
+Call any of the 71 MCP tools directly from the VS Code integrated terminal, PowerShell, or bash — no AI client needed.
+
+### Install
+
+```powershell
+cd "C:\Work\Wordpress Studio MCP Plugin for Claude Code"
+npm link
+```
+
+**First time only — add npm global bin to PATH** (PowerShell, run once):
+
+```powershell
+$npmBin = "$env:APPDATA\npm"
+$current = [Environment]::GetEnvironmentVariable("PATH", "User")
+if ($current -notlike "*$npmBin*") {
+    [Environment]::SetEnvironmentVariable("PATH", "$current;$npmBin", "User")
+    Write-Host "Done — restart terminal to apply"
+}
+```
+
+Then restart your terminal. `wpstudio` will be available everywhere.
+
+### Commands
+
+```powershell
+wpstudio list                              # all 71 tools grouped by category
+wpstudio help <tool>                       # parameters for a tool
+wpstudio --version                         # print version
+```
+
+### Examples
+
+```powershell
+# List all Studio sites
+wpstudio studio-registry
+
+# List plugins on a site
+wpstudio wpcli-plugin-list --site i-help.us
+
+# Query the database
+wpstudio db-query --site i-help.us --sql "SELECT option_name, option_value FROM wp_options LIMIT 5"
+
+# Run any WP-CLI command
+wpstudio wpcli-run --site i-help.us --cmd "cache flush"
+
+# Toggle Xdebug
+wpstudio studio-xdebug-enable --site i-help.us --confirmed true
+
+# Install all marketing skills
+wpstudio marketing-skills-install --skills all --scope global
+
+# Raw JSON output (pipeable to jq)
+wpstudio studio-registry --json
+wpstudio studio-registry --json | jq '.content[0].text'
+```
+
+### Tool naming
+
+MCP tool names (`studio_registry`, `wpcli_plugin_list`) become CLI subcommands with underscores replaced by hyphens (`studio-registry`, `wpcli-plugin-list`). Run `wpstudio list` to see all 71.
 
 ---
 
