@@ -33,13 +33,14 @@ import { registerAdminTools }       from "./tools/admin.js";
 import { registerDomainTools }      from "./tools/domain.js";
 import { registerAbilitiesTools }   from "./tools/abilities.js";
 import { registerXdebugTools }      from "./tools/xdebug.js";
+import { registerMarketingTools }   from "./tools/marketing.js";
 import { STUDIO_HOME, STUDIO_SITES_ROOT } from "./studio-config.js";
 
 // ─── MCP Server ───────────────────────────────────────────────────────────────
 
 const server = new McpServer({
   name:    "wordpress-studio-mcp-extension",
-  version: "0.1.13",
+  version: "0.1.14",
 });
 
 // ─── Register all tool groups ─────────────────────────────────────────────────
@@ -55,6 +56,7 @@ registerAdminTools(server);         // wp_config_set, wp_security_audit, wp_php_
 registerDomainTools(server);        // studio_site_set_domain, studio_site_remove_domain, studio_domain_list, studio_site_use_mkcert
 registerAbilitiesTools(server);    // wp_mcp_adapter_setup, wp_abilities_discover, wp_abilities_info, wp_abilities_call
 registerXdebugTools(server);       // studio_xdebug_enable, studio_xdebug_disable, studio_xdebug_status, studio_xdebug_ide_config
+registerMarketingTools(server);   // marketing_skills_list, marketing_skills_install, marketing_skills_status, marketing_skills_context
 
 // ─── Startup banner (stderr — does not pollute the MCP stdio stream) ──────────
 
@@ -64,7 +66,7 @@ const pad = (s: string, n: number) => s.slice(0, n).padEnd(n);
 process.stderr.write(
   "\n" +
   "┌─────────────────────────────────────────────────────────────┐\n" +
-  "│  WordPress Studio MCP Extension  v0.1.13                    │\n" +
+  "│  WordPress Studio MCP Extension  v0.1.14                    │\n" +
   `│  Project:     ${pad(PROJECT_ROOT, 45)}│\n` +
   `│  Studio home: ${pad(STUDIO_HOME, 45)}│\n` +
   `│  Sites root:  ${pad(STUDIO_SITES_ROOT, 45)}│\n` +

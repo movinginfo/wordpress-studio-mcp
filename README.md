@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-v22.5%2B-green.svg)](https://nodejs.org)
-[![Version](https://img.shields.io/badge/version-0.1.8-blue.svg)](https://github.com/movinginfo/wordpress-studio-mcp/releases)
+[![Version](https://img.shields.io/badge/version-0.1.14-blue.svg)](https://github.com/movinginfo/wordpress-studio-mcp/releases)
 [![WordPress Studio](https://img.shields.io/badge/WordPress%20Studio-1.7.7-3858e9.svg)](https://developer.wordpress.com/studio/)
 [![MCP](https://img.shields.io/badge/MCP-stdio-orange.svg)](https://modelcontextprotocol.io)
 [![GitHub](https://img.shields.io/badge/GitHub-movinginfo%2Fwordpress--studio--mcp-black.svg)](https://github.com/movinginfo/wordpress-studio-mcp)
@@ -16,7 +16,7 @@
 - [The Complete WordPress AI Stack](#the-complete-wordpress-ai-stack)
 - [Install — Claude Desktop](#install--claude-desktop)
 - [Install — Claude Code IDE](#install--claude-code-ide)
-- [wordpress-studio-mcp Tools (54)](#wordpress-studio-mcp--54-tools--this-project)
+- [wordpress-studio-mcp Tools (58)](#wordpress-studio-mcp--58-tools--this-project)
 - [wordpress-studio Tools (13)](#wordpress-studio--13-tools--automattic-wp-studio1777)
 - [WP-CLI Reference](#wp-cli-reference)
 - [wordpress.com MCP Tools (17)](#wordpresscom-mcp--17-tools--automattic-remote-http)
@@ -50,15 +50,17 @@ Claude Desktop / Claude Code
 │                                                              WP-CLI, preview, screenshot
 │
 └── 🔧 wordpress-studio-mcp     LOCAL   stdio              →  node dist/index.js
-    This project · github.com/movinginfo/wordpress-studio-mcp  57 tools — filesystem,
+    This project · github.com/movinginfo/wordpress-studio-mcp  61 tools — filesystem,
                                                                SQLite DB, WP-CLI, REST API,
                                                                security audit, wp-config mgmt,
                                                                theme tokens, blueprints,
                                                                WP.com MCP proxy,
-                                                               VIP Design System
+                                                               VIP Design System,
+                                                               Xdebug, Abilities API,
+                                                               marketing skills
 ```
 
-**Total: 4 commands + 87 MCP tools** covering the full WordPress development lifecycle.
+**Total: 4 commands + 91 MCP tools** covering the full WordPress development lifecycle.
 
 ---
 
@@ -587,6 +589,51 @@ http://localhost:PORT/wp-json/mcp/mcp-adapter-default-server
 It exposes three built-in meta-tools — `mcp-adapter/discover-abilities`, `mcp-adapter/get-ability-info`, `mcp-adapter/execute-ability` — keeping AI context clean regardless of how many abilities exist.
 
 > **Note:** Requires WordPress 6.8+, PHP 7.4+, and Composer (for vendor dependencies). Use `via:wpcli` as a fallback when the HTTP adapter is not yet installed.
+
+#### Marketing Skills for Claude Code
+
+Install 34 battle-tested marketing skills from [github.com/coreyhaines31/marketingskills](https://github.com/coreyhaines31/marketingskills) directly into Claude Code. Skills cover CRO, copywriting, SEO, paid ads, analytics, growth engineering, and revenue ops — activated with `/skill-name` in any Claude Code session.
+
+| Tool | Description |
+|---|---|
+| `marketing_skills_list` | Browse all 34 skills with name, category, and description. Filter by category: CRO, Copy, SEO, Paid, Analytics, Growth, Revenue, Foundation. |
+| `marketing_skills_install` | Download and install skills into Claude Code. Accepts `"all"`, a category name, or a comma-separated list of skill names. `scope: global` installs to `~/.claude/skills/` (available everywhere); `scope: project` installs to `.claude/skills/` in the current project. |
+| `marketing_skills_status` | Show which skills are installed in global vs project scope, with per-category counts and coverage totals. |
+| `marketing_skills_context` | Get the guide for setting up `product-marketing-context` — the foundation skill that establishes your product, audience, and competitive positioning for all other marketing skills. |
+
+**Categories:**
+| Category | Skills | Purpose |
+|---|---|---|
+| Foundation | `product-marketing-context` | Product context — run first, feeds all other skills |
+| CRO | `landing-page-optimizer`, `ab-test-designer`, `funnel-analyzer`, `user-journey-mapper`, `heatmap-interpreter` | Conversion rate optimization |
+| Copy | `ad-copy-generator`, `email-sequence-writer`, `headline-optimizer`, `value-proposition-crafter`, `social-proof-formatter` | High-converting copy |
+| SEO | `keyword-strategy-planner`, `content-brief-generator`, `meta-tag-optimizer`, `link-building-strategist`, `seo-content-auditor` | Search engine optimization |
+| Paid | `google-ads-optimizer`, `facebook-ads-strategist`, `budget-allocator`, `audience-segmentation-expert`, `retargeting-campaign-builder` | Paid advertising |
+| Analytics | `metrics-dashboard-designer`, `cohort-analysis-runner`, `attribution-model-builder`, `reporting-narrative-creator`, `data-driven-hypothesis-generator` | Analytics & reporting |
+| Growth | `viral-loop-designer`, `referral-program-builder`, `product-led-growth-strategist`, `community-growth-hacker`, `partnership-deal-architect` | Growth loops |
+| Revenue | `pricing-strategy-optimizer`, `upsell-cross-sell-designer`, `churn-reduction-specialist` | Revenue expansion |
+
+**Workflow:**
+```
+1. marketing_skills_install  skills:product-marketing-context  scope:global
+   → installs the foundation context skill first
+
+2. marketing_skills_install  skills:all  scope:global
+   → installs all 34 skills to ~/.claude/skills/
+
+3. In Claude Code: /product-marketing-context
+   → Claude asks about your product, audience, and positioning
+
+4. In Claude Code: /landing-page-optimizer
+   → Claude uses your product context to optimize landing pages
+
+5. marketing_skills_status
+   → verify all skills are installed
+```
+
+> **Tip:** Skills installed to `global` scope are available in every project. Use `project` scope for team-specific configurations checked into source control.
+
+---
 
 #### Administration & Security
 
