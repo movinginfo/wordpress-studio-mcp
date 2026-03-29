@@ -1,12 +1,12 @@
 {
   "mcpServers": {
-    "wordpress-studio-ext": {
+    "wordpress-studio-mcp": {
       "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "wordpress-studio-mcp@latest"],
+      "command": "node",
+      "args": ["C:\\Work\\Wordpress Studio MCP Plugin for Claude Code\\dist\\index.js"],
       "env": {
-        "STUDIO_HOME": "${STUDIO_HOME}",
-        "STUDIO_SITES_ROOT": "${STUDIO_SITES_ROOT}"
+        "STUDIO_HOME": "",
+        "STUDIO_SITES_ROOT": ""
       }
     }
   }
